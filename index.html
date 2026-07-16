@@ -41,7 +41,8 @@ header h1 span{color:var(--accent)}
 #dates button.sel{background:var(--accent);border-color:var(--accent);color:#fff}
 #dates button.sel .d{color:rgba(255,255,255,.75)}
 
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+.kpis.two{grid-template-columns:repeat(2,1fr);margin-bottom:12px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 13px}
 .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3)}
 .kpi .v{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
@@ -61,11 +62,6 @@ header h1 span{color:var(--accent)}
 .sec.derisk .itm::before{background:var(--accent)}
 .itm b.tk{color:var(--accent);font-weight:700}
 .para{padding:8px 0;font-size:15px;color:var(--tx2);line-height:1.6}
-.plain{background:rgba(90,169,230,.10);border:1px solid rgba(90,169,230,.25);border-left:4px solid var(--accent);
-  border-radius:10px;padding:10px 13px;margin:8px 0 10px;font-size:15.5px;line-height:1.6}
-.plain .pl{display:block;font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  color:var(--accent);margin-bottom:3px}
-.plain.big{font-size:16.5px;padding:13px 15px;margin:0 0 12px}
 .src{display:inline-block;font-family:var(--mono);font-size:10.5px;color:var(--tx3);
   background:var(--panel2);border-radius:5px;padding:0 5px;margin:0 1px;vertical-align:1px;white-space:nowrap}
 em.inf{font-style:normal;font-weight:700;color:var(--warn)}
@@ -103,17 +99,18 @@ footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-he
 <footer>
   Read-only viewer · data written weekdays ~07:15 SGT by the Claude scheduled task<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:16-23:39
+  v2026:07:17-00:04
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
 const KEY = "sb_publishable_y-wyxLIPM0eiQOezFH6UYQ_WEJzxLGz";
 const API = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,run_ts,brief_md,metrics,source&order=run_date.desc&limit=30";
+const API_HIST = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,book:metrics->book_sgd,cost:metrics->cost_sgd&order=run_date.desc&limit=400";
 const DATA_CACHE = "ignitus-data-v1";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOWS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-let briefs = [], sel = 0, view = "read";
+let briefs = [], hist = [], sel = 0, view = "read";
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -136,6 +133,13 @@ async function load(){
     if(!net){ showErr("Cannot reach Supabase and no cached brief is available. "+e.message); return; }
   }
   briefs = net;
+  // lightweight book/cost history for Δ1d / Δ1y (cached the same way)
+  try{
+    const r2 = await fetch(API_HIST, {headers:{apikey:KEY, Authorization:"Bearer "+KEY}});
+    if(r2.ok){ hist = await r2.clone().json(); try{ const c = await caches.open(DATA_CACHE); await c.put(API_HIST, r2); }catch(e){} }
+  }catch(e){
+    try{ const c = await caches.open(DATA_CACHE); const m2 = await c.match(API_HIST); if(m2) hist = await m2.json(); }catch(e2){}
+  }
   if(!briefs.length){ showErr("No briefs in brief_log yet — first scheduled run is the next weekday 07:15 SGT."); return; }
   $("#status").textContent = (fromCache ? "offline · cached" : "live") + " · " + briefs.length + " brief" + (briefs.length>1?"s":"");
   renderDates(); render();
@@ -146,10 +150,7 @@ function showErr(t){ const e=$("#err"); e.textContent=t; e.style.display="block"
 function renderDates(){
   const b = briefs[sel], d = dOf(b.run_date);
   $("#bigdate").innerHTML = `<span class="dow">${DOWS[d.getDay()]}</span> · ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  const m = b.metrics || {};
-  $("#bigsub").textContent = m.book_sgd!=null
-    ? `Book ${fmtSGD(m.book_sgd)}${m.unrealized_pct!=null ? ` · ${m.unrealized_pct>=0?"+":""}${m.unrealized_pct}% unrealized vs cost` : ""}`
-    : "";
+  $("#bigsub").textContent = "";
   $("#dates").innerHTML = briefs.map((x,i)=>{
     const xd = dOf(x.run_date);
     return `<button class="${i===sel?'sel':''}" onclick="sel=${i};renderDates();render()">
@@ -184,9 +185,10 @@ function parseBrief(md){
       continue;
     }
     if(!t) continue;
-    if(t.startsWith("💬")) { cur.plain = (cur.plain ? cur.plain + " " : "") + t.slice(2).trim(); continue; }
+    if(t.startsWith("💬")) { cur.skipPlain = true; continue; }   // legacy plain-English lines: not displayed
+    if(cur.skipPlain && /^\s/.test(raw) && !t.startsWith("•")) continue; // their wrapped continuations
+    cur.skipPlain = false;
     if(t.startsWith("•")) cur.items.push(t.slice(1).trim());
-    else if(cur.plain && /^\s/.test(raw)) cur.plain += " " + t;
     else if(cur.items.length && /^\s/.test(raw)) cur.items[cur.items.length-1] += " " + t;
     else cur.paras.push(t);
   }
@@ -210,16 +212,11 @@ function renderSections(md){
   const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length));
   if(!body.length) return null; // unknown format → caller falls back to raw
   let h = "";
-  // header lines (book line etc.) as a quiet summary paragraph
-  const head = secs.find(s => s.key === "header");
-  if(head && head.paras.length){
-    h += `<div class="sec"><div class="para">${head.paras.map(fmtText).join("<br>")}</div></div>`;
-  }
+  // header lines intentionally not rendered (date + return tiles cover them; book value hidden by CK request)
   for(const s of body){
     h += `<div class="sec ${s.key}"><div class="sec-h">
       <span class="dot" style="background:${s.color}"></span><h2>${esc(s.title)}</h2>
       ${s.sub ? `<span class="sub">${esc(s.sub)}</span>` : ""}</div>`;
-    if(s.plain) h += `<div class="plain"><span class="pl">In plain English</span>${esc(s.plain)}</div>`;
     for(const p of s.paras) h += `<div class="para">${fmtText(p)}</div>`;
     for(const it of s.items) h += `<div class="itm">${fmtText(it)}</div>`;
     if(s.key === "act" && s.items.length)
@@ -241,18 +238,54 @@ function meter(label, d){
     <div class="bar"><div class="fill ${over?'over':''}" style="width:${w}%"></div><div class="cap" style="left:${capX}%"></div></div></div>`;
 }
 
+/* Δ returns vs a prior brief_log row. Sources: light history query; falls back to the
+   values the scheduled run stored in metrics. Never approximated from anything else. */
+function retvs(selDate, m){
+  const rows = hist.filter(r => r.book != null).sort((a,b)=> a.run_date < b.run_date ? -1 : 1);
+  const here = rows.find(r => r.run_date === selDate);
+  const out = {d1:null, d1src:null, d1flows:false, y1:null, y1src:null, y1flows:false};
+  if(here){
+    const prev = [...rows].reverse().find(r => r.run_date < selDate);
+    if(prev){
+      out.d1 = (here.book/prev.book - 1)*100; out.d1src = prev.run_date;
+      out.d1flows = here.cost!=null && prev.cost!=null && Math.abs(here.cost/prev.cost - 1) > 0.001;
+    }
+    const tgt = new Date(dOf(selDate).getTime() - 365*864e5);
+    let best=null, bestGap=11;
+    for(const r of rows){
+      const gap = Math.abs((dOf(r.run_date)-tgt)/864e5);
+      if(r.run_date < selDate && gap < bestGap){ best=r; bestGap=gap; }
+    }
+    if(best){
+      out.y1 = (here.book/best.book - 1)*100; out.y1src = best.run_date;
+      out.y1flows = here.cost!=null && best.cost!=null && Math.abs(here.cost/best.cost - 1) > 0.001;
+    }
+  }
+  if(out.d1==null && m.ret_1d_pct!=null){ out.d1 = m.ret_1d_pct; out.d1src = "stored"; }
+  if(out.y1==null && m.ret_1y_pct!=null){ out.y1 = m.ret_1y_pct; out.y1src = "stored"; }
+  return out;
+}
+function retTile(label, v, sub, flows){
+  const col = v==null ? "var(--tx3)" : (v>=0 ? "var(--good)" : "var(--bad)");
+  const txt = v==null ? "n/a" : (v>=0?"+":"") + v.toFixed(v!=null && Math.abs(v)>=10 ? 1 : 2) + "%";
+  return `<div class="kpi"><div class="l">${label}</div><div class="v" style="color:${col}">${txt}</div>
+    <div class="s">${v==null ? "no history yet" : esc(sub||"") + (flows ? " · incl. flows" : "")}</div></div>`;
+}
 function render(){
   const b = briefs[sel], m = b.metrics || {};
   const acts = m.act || [];
   const dk = m.derisk || {};
   const breaches = Object.values(dk).filter(x=>x && x.breached).length;
+  const rv = retvs(b.run_date, m);
   let h = "";
 
-  if(m.plain_overview) h += `<div class="plain big"><span class="pl">Today in plain English</span>${esc(m.plain_overview)}</div>`;
+  h += `<div class="kpis">` +
+    retTile("Since day 1", m.unrealized_pct!=null ? m.unrealized_pct : null, "vs cost", false) +
+    retTile("vs 1 year", rv.y1, rv.y1src && rv.y1src!=="stored" ? "vs "+rv.y1src : "", rv.y1flows) +
+    retTile("vs yesterday", rv.d1, rv.d1src && rv.d1src!=="stored" ? "vs "+rv.d1src : "", rv.d1flows) +
+  `</div>`;
 
-  h += `<div class="kpis">
-    <div class="kpi"><div class="l">Book</div><div class="v">${m.book_sgd!=null ? (m.book_sgd/1e6).toFixed(2)+"M" : "n/a"}</div>
-      <div class="s">${m.unrealized_pct!=null ? (m.unrealized_pct>=0?"+":"")+m.unrealized_pct+"% vs cost" : ""}</div></div>
+  h += `<div class="kpis two">
     <div class="kpi"><div class="l">Act today</div><div class="v" style="color:${acts.length? 'var(--bad)':'var(--good)'}">${acts.length}</div>
       <div class="s">${m.act_suppressed!=null ? m.act_suppressed+" suppressed" : ""}</div></div>
     <div class="kpi"><div class="l">Guardrails</div><div class="v" style="color:${breaches?'var(--warn)':'var(--good)'}">${breaches ? breaches+" over" : "OK"}</div>
