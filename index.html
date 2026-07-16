@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>Ignitus Brief</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{
+  --bg:#0e1116; --panel:#171c24; --panel2:#1e242e; --line:#2a323e;
+  --tx:#e8ecf1; --tx2:#9aa5b1; --tx3:#6b7683;
+  --accent:#5aa9e6; --good:#4cc38a; --warn:#e6b450; --bad:#e5645f;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{--bg:#f4f6f8;--panel:#ffffff;--panel2:#eef1f5;--line:#dde3ea;
+        --tx:#1b2430;--tx2:#54606e;--tx3:#8a95a1;}
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+     padding:max(12px,env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));max-width:760px;margin:0 auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 2px 12px}
+header h1{font-size:19px;letter-spacing:.3px}
+header h1 span{color:var(--accent)}
+#status{font-size:12px;color:var(--tx3)}
+#dates{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;-webkit-overflow-scrolling:touch}
+#dates button{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--tx2);
+  border-radius:18px;padding:5px 13px;font-size:13px;cursor:pointer}
+#dates button.sel{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3)}
+.kpi .v{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .s{font-size:11px;color:var(--tx2)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx2);margin-bottom:8px}
+.card h2 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.item{padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.item:first-of-type{border-top:none}
+.item b.tk{color:var(--accent);font-family:var(--mono);font-size:13px}
+.meter{margin:9px 0 3px}
+.meter .row{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px}
+.meter .row .n{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.bar{height:7px;border-radius:4px;background:var(--panel2);position:relative;overflow:hidden}
+.bar .fill{height:100%;border-radius:4px;background:var(--good)}
+.bar .fill.over{background:var(--bad)}
+.bar .cap{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--tx2)}
+pre#raw{white-space:pre-wrap;word-wrap:break-word;font-family:var(--mono);font-size:12px;line-height:1.55;color:var(--tx);
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+details summary{cursor:pointer;color:var(--tx2);font-size:13px;padding:8px 2px;list-style:none}
+details summary::before{content:"▸ "}details[open] summary::before{content:"▾ "}
+footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px}
+#err{background:var(--bad);color:#fff;border-radius:10px;padding:10px 12px;font-size:13px;display:none;margin-bottom:10px}
+.badge{display:inline-block;font-size:11px;border-radius:9px;padding:1px 8px;background:var(--panel2);color:var(--tx2);margin-left:6px}
+.disclaimer{font-size:11.5px;color:var(--tx3);margin-top:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ignitus <span>Brief</span></h1>
+  <div id="status">loading…</div>
+</header>
+<div id="err"></div>
+<nav id="dates" aria-label="Brief history"></nav>
+<main id="app"></main>
+<footer>
+  Read-only viewer · data written weekdays ~07:15 SGT by the Claude scheduled task<br>
+  Not financial advice — facts and framework signals only; decisions are CK's.<br>
+  v2026:07:16-15:55
+</footer>
+<script>
+const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
+const KEY = "sb_publishable_y-wyxLIPM0eiQOezFH6UYQ_WEJzxLGz";
+const API = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,run_ts,brief_md,metrics,source&order=run_date.desc&limit=30";
+const DATA_CACHE = "ignitus-data-v1";
+
+let briefs = [], sel = 0;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtSGD = n => n==null ? "n/a" : "SGD " + Math.round(n).toLocaleString("en-SG");
+
+async function load(){
+  let net = null, fromCache = false;
+  try{
+    const r = await fetch(API, {headers:{apikey:KEY, Authorization:"Bearer "+KEY}});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    net = await r.clone().json();
+    try{ const c = await caches.open(DATA_CACHE); await c.put(API, r); }catch(e){}
+  }catch(e){
+    try{
+      const c = await caches.open(DATA_CACHE);
+      const m = await c.match(API);
+      if(m){ net = await m.json(); fromCache = true; }
+    }catch(e2){}
+    if(!net){ showErr("Cannot reach Supabase and no cached brief is available. "+e.message); return; }
+  }
+  briefs = net;
+  if(!briefs.length){ showErr("No briefs in brief_log yet — first scheduled run is the next weekday 07:15 SGT."); return; }
+  $("#status").textContent = (fromCache ? "offline · cached" : "live") + " · " + briefs.length + " brief" + (briefs.length>1?"s":"");
+  renderDates(); render();
+}
+
+function showErr(t){ const e=$("#err"); e.textContent=t; e.style.display="block"; }
+
+function renderDates(){
+  $("#dates").innerHTML = briefs.map((b,i)=>
+    `<button class="${i===sel?'sel':''}" onclick="sel=${i};renderDates();render()">${b.run_date}</button>`).join("");
+}
+
+function meter(label, d){
+  if(!d || d.pct==null) return "";
+  const cap = d.cap, pct = d.pct;
+  const max = Math.max(cap*1.25, pct*1.05);
+  const w = Math.min(100, pct/max*100), capX = cap/max*100;
+  const over = pct > cap;
+  const excess = d.excess_sgd!=null && over ? ` · ${fmtSGD(d.excess_sgd)} over` : "";
+  return `<div class="meter"><div class="row"><span>${esc(label)}</span>
+    <span class="n" style="color:${over?'var(--bad)':'var(--tx2)'}">${pct.toFixed(2)}% / cap ${cap}%${excess}</span></div>
+    <div class="bar"><div class="fill ${over?'over':''}" style="width:${w}%"></div><div class="cap" style="left:${capX}%"></div></div></div>`;
+}
+
+function render(){
+  const b = briefs[sel], m = b.metrics || {};
+  const acts = m.act || [];
+  const dk = m.derisk || {};
+  const breaches = Object.values(dk).filter(x=>x && x.breached).length;
+  let h = "";
+
+  h += `<div class="kpis">
+    <div class="kpi"><div class="l">Book</div><div class="v">${m.book_sgd!=null ? (m.book_sgd/1e6).toFixed(2)+"M" : "n/a"}</div>
+      <div class="s">${m.unrealized_pct!=null ? (m.unrealized_pct>=0?"+":"")+m.unrealized_pct+"% vs cost" : ""}</div></div>
+    <div class="kpi"><div class="l">Act today</div><div class="v" style="color:${acts.length? 'var(--bad)':'var(--good)'}">${acts.length}</div>
+      <div class="s">${m.act_suppressed!=null ? m.act_suppressed+" suppressed" : ""}</div></div>
+    <div class="kpi"><div class="l">Guardrails</div><div class="v" style="color:${breaches?'var(--warn)':'var(--good)'}">${breaches ? breaches+" over" : "OK"}</div>
+      <div class="s">of ${Object.keys(dk).length||"–"} caps</div></div>
+  </div>`;
+
+  if(acts.length){
+    h += `<div class="card"><h2><span class="dot" style="background:var(--bad)"></span>Act today</h2>` +
+      acts.map(a=>`<div class="item"><b class="tk">${esc(a.ticker)}</b>${a.w_pct!=null?`<span class="badge">w ${a.w_pct}%</span>`:""}<br>${esc(a.reason||"")}</div>`).join("") +
+      `<div class="disclaimer">Triggers + evidence only — never a trade recommendation.</div></div>`;
+  } else {
+    h += `<div class="card"><h2><span class="dot" style="background:var(--good)"></span>Act today</h2>
+      <div class="item">No action required today.</div></div>`;
+  }
+
+  if(Object.keys(dk).length){
+    h += `<div class="card"><h2><span class="dot" style="background:var(--warn)"></span>Derisk guardrails</h2>` +
+      meter("NVDA single position", dk.single_nvda) +
+      meter("Semi cluster", dk.semi_cluster) +
+      meter("Tech sector", dk.sector_tech) +
+      meter("Top-10 concentration", dk.top10) +
+      meter("US market", dk.market_us) + `</div>`;
+  }
+
+  if(m.watch && m.watch.length){
+    h += `<div class="card"><h2><span class="dot" style="background:var(--warn)"></span>Watch</h2>
+      <div class="item">${m.watch.map(esc).join(" · ")}</div></div>`;
+  }
+  if(m.health_changes){
+    h += `<div class="card"><h2><span class="dot" style="background:var(--accent)"></span>Health changes</h2>
+      <div class="item">${esc(m.health_changes)}</div>
+      ${m.moat_proxy && m.moat_proxy.length ? `<div class="item">Moat-erosion proxy (not a rating): ${m.moat_proxy.map(esc).join(", ")}</div>`:""}</div>`;
+  }
+
+  h += `<details open><summary>Full brief (${esc(b.run_date)})</summary><pre id="raw">${esc(b.brief_md)}</pre></details>`;
+  if(m.gaps && m.gaps.length){
+    h += `<div class="card"><h2><span class="dot" style="background:var(--tx3)"></span>Data gaps</h2>` +
+      m.gaps.map(g=>`<div class="item">${esc(g)}</div>`).join("") + `</div>`;
+  }
+  $("#app").innerHTML = h;
+}
+
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+load();
+</script>
+</body>
+</html>
