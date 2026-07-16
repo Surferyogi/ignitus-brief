@@ -22,42 +22,72 @@
         --tx:#1b2430;--tx2:#54606e;--tx3:#8a95a1;}
 }
 *{box-sizing:border-box;margin:0}
-body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-     padding:max(12px,env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));max-width:760px;margin:0 auto}
-header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 2px 12px}
+body{background:var(--bg);color:var(--tx);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+     padding:max(12px,env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom));max-width:760px;margin:0 auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 2px 4px}
 header h1{font-size:19px;letter-spacing:.3px}
 header h1 span{color:var(--accent)}
 #status{font-size:12px;color:var(--tx3)}
-#dates{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;-webkit-overflow-scrolling:touch}
+
+/* ── BIG DATE ── */
+#bigdate{font-size:28px;font-weight:750;letter-spacing:-.3px;padding:8px 2px 2px}
+#bigdate .dow{color:var(--accent)}
+#bigsub{font-size:14px;color:var(--tx2);padding:0 2px 14px}
+#dates{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 16px;-webkit-overflow-scrolling:touch}
 #dates button{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--tx2);
-  border-radius:18px;padding:5px 13px;font-size:13px;cursor:pointer}
-#dates button.sel{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  border-radius:22px;padding:10px 18px;font-size:16px;font-weight:600;cursor:pointer;
+  font-variant-numeric:tabular-nums}
+#dates button .d{display:block;font-size:11px;font-weight:500;color:var(--tx3);letter-spacing:.5px;text-transform:uppercase}
+#dates button.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+#dates button.sel .d{color:rgba(255,255,255,.75)}
+
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 13px}
 .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3)}
-.kpi .v{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
-.kpi .s{font-size:11px;color:var(--tx2)}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
-.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx2);margin-bottom:8px}
-.card h2 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:1px}
-.item{padding:7px 0;border-top:1px solid var(--line);font-size:14px}
-.item:first-of-type{border-top:none}
-.item b.tk{color:var(--accent);font-family:var(--mono);font-size:13px}
-.meter{margin:9px 0 3px}
-.meter .row{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px}
+.kpi .v{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .s{font-size:11.5px;color:var(--tx2)}
+
+/* ── REPORT READER ── */
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+.sec-h{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+.sec-h .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+.sec-h h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx)}
+.sec-h .sub{font-size:12px;color:var(--tx3);font-weight:500;margin-left:auto;text-align:right}
+.itm{padding:12px 0 12px 14px;border-top:1px solid var(--line);position:relative;font-size:16px;line-height:1.65}
+.itm:first-of-type{border-top:none}
+.itm::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:2px;background:var(--line)}
+.sec.act .itm::before{background:var(--bad)}
+.sec.watch .itm::before{background:var(--warn)}
+.sec.derisk .itm::before{background:var(--accent)}
+.itm b.tk{color:var(--accent);font-weight:700}
+.para{padding:8px 0;font-size:15px;color:var(--tx2);line-height:1.6}
+.plain{background:rgba(90,169,230,.10);border:1px solid rgba(90,169,230,.25);border-left:4px solid var(--accent);
+  border-radius:10px;padding:10px 13px;margin:8px 0 10px;font-size:15.5px;line-height:1.6}
+.plain .pl{display:block;font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:var(--accent);margin-bottom:3px}
+.plain.big{font-size:16.5px;padding:13px 15px;margin:0 0 12px}
+.src{display:inline-block;font-family:var(--mono);font-size:10.5px;color:var(--tx3);
+  background:var(--panel2);border-radius:5px;padding:0 5px;margin:0 1px;vertical-align:1px;white-space:nowrap}
+em.inf{font-style:normal;font-weight:700;color:var(--warn)}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--good);font-weight:600}.dn{color:var(--bad);font-weight:600}
+
+.meter{margin:10px 0 4px}
+.meter .row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
 .meter .row .n{font-variant-numeric:tabular-nums;font-family:var(--mono)}
-.bar{height:7px;border-radius:4px;background:var(--panel2);position:relative;overflow:hidden}
+.bar{height:8px;border-radius:4px;background:var(--panel2);position:relative;overflow:hidden}
 .bar .fill{height:100%;border-radius:4px;background:var(--good)}
 .bar .fill.over{background:var(--bad)}
 .bar .cap{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--tx2)}
-pre#raw{white-space:pre-wrap;word-wrap:break-word;font-family:var(--mono);font-size:12px;line-height:1.55;color:var(--tx);
+
+#viewtoggle{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;width:max-content;margin:2px 0 12px}
+#viewtoggle button{border:0;background:var(--panel);color:var(--tx2);font-size:13px;font-weight:600;padding:7px 16px;cursor:pointer}
+#viewtoggle button.sel{background:var(--accent);color:#fff}
+pre#raw{white-space:pre-wrap;word-wrap:break-word;font-family:var(--mono);font-size:12px;line-height:1.55;
   background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
-details summary{cursor:pointer;color:var(--tx2);font-size:13px;padding:8px 2px;list-style:none}
-details summary::before{content:"▸ "}details[open] summary::before{content:"▾ "}
-footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px}
+footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-height:1.7}
 #err{background:var(--bad);color:#fff;border-radius:10px;padding:10px 12px;font-size:13px;display:none;margin-bottom:10px}
-.badge{display:inline-block;font-size:11px;border-radius:9px;padding:1px 8px;background:var(--panel2);color:var(--tx2);margin-left:6px}
-.disclaimer{font-size:11.5px;color:var(--tx3);margin-top:4px}
+.disclaimer{font-size:12px;color:var(--tx3);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
 </style>
 </head>
 <body>
@@ -66,24 +96,29 @@ footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px}
   <div id="status">loading…</div>
 </header>
 <div id="err"></div>
+<div id="bigdate"></div>
+<div id="bigsub"></div>
 <nav id="dates" aria-label="Brief history"></nav>
 <main id="app"></main>
 <footer>
   Read-only viewer · data written weekdays ~07:15 SGT by the Claude scheduled task<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:16-15:55
+  v2026:07:16-23:39
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
 const KEY = "sb_publishable_y-wyxLIPM0eiQOezFH6UYQ_WEJzxLGz";
 const API = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,run_ts,brief_md,metrics,source&order=run_date.desc&limit=30";
 const DATA_CACHE = "ignitus-data-v1";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DOWS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-let briefs = [], sel = 0;
+let briefs = [], sel = 0, view = "read";
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtSGD = n => n==null ? "n/a" : "SGD " + Math.round(n).toLocaleString("en-SG");
+const dOf = iso => new Date(iso + "T00:00:00");
 
 async function load(){
   let net = null, fromCache = false;
@@ -109,8 +144,89 @@ async function load(){
 function showErr(t){ const e=$("#err"); e.textContent=t; e.style.display="block"; }
 
 function renderDates(){
-  $("#dates").innerHTML = briefs.map((b,i)=>
-    `<button class="${i===sel?'sel':''}" onclick="sel=${i};renderDates();render()">${b.run_date}</button>`).join("");
+  const b = briefs[sel], d = dOf(b.run_date);
+  $("#bigdate").innerHTML = `<span class="dow">${DOWS[d.getDay()]}</span> · ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const m = b.metrics || {};
+  $("#bigsub").textContent = m.book_sgd!=null
+    ? `Book ${fmtSGD(m.book_sgd)}${m.unrealized_pct!=null ? ` · ${m.unrealized_pct>=0?"+":""}${m.unrealized_pct}% unrealized vs cost` : ""}`
+    : "";
+  $("#dates").innerHTML = briefs.map((x,i)=>{
+    const xd = dOf(x.run_date);
+    return `<button class="${i===sel?'sel':''}" onclick="sel=${i};renderDates();render()">
+      <span class="d">${DOWS[xd.getDay()].slice(0,3)}</span>${xd.getDate()} ${MONTHS[xd.getMonth()]}</button>`;
+  }).join("");
+}
+
+/* ── brief_md → structured sections ── */
+const SECDEFS = [
+  ["🔴", "act",    "Act today",      "var(--bad)"],
+  ["🟡", "watch",  "Watch",          "var(--warn)"],
+  ["⚪", "fyi",    "FYI",            "var(--tx3)"],
+  ["📊", "derisk", "Derisk",         "var(--accent)"],
+  ["🧬", "health", "Health changes", "var(--good)"],
+  ["⚠️", "gaps",   "Data gaps",      "var(--warn)"],
+  ["⚠",  "gaps",   "Data gaps",      "var(--warn)"]
+];
+function parseBrief(md){
+  const secs = []; let cur = {key:"header", title:"", color:"var(--tx3)", items:[], paras:[]};
+  for(const raw of md.split("\n")){
+    const t = raw.trim();
+    const def = SECDEFS.find(s => t.startsWith(s[0]));
+    if(def){
+      secs.push(cur);
+      let rest = t.slice(def[0].length).trim();
+      cur = {key:def[1], title:def[2], color:def[3], sub:"", items:[], paras:[]};
+      // pull the parenthetical / trailing info out of e.g. "ACT TODAY (3 of 12 …)" or "DERISK [ … ]"
+      const mm = rest.match(/\(([^)]*)\)/);
+      if(mm) cur.sub = mm[1];
+      const after = rest.split(":").slice(1).join(":").trim();
+      if(after) cur.paras.push(after);
+      continue;
+    }
+    if(!t) continue;
+    if(t.startsWith("💬")) { cur.plain = (cur.plain ? cur.plain + " " : "") + t.slice(2).trim(); continue; }
+    if(t.startsWith("•")) cur.items.push(t.slice(1).trim());
+    else if(cur.plain && /^\s/.test(raw)) cur.plain += " " + t;
+    else if(cur.items.length && /^\s/.test(raw)) cur.items[cur.items.length-1] += " " + t;
+    else cur.paras.push(t);
+  }
+  secs.push(cur);
+  return secs;
+}
+function fmtText(s){
+  let h = esc(s);
+  h = h.replace(/\[([a-zA-Z0-9:+._\- ]{2,40})\]/g, '<span class="src">$1</span>');
+  h = h.replace(/INFERENCE:/g, '<em class="inf">INFERENCE:</em>');
+  h = h.replace(/(^|\s)(−?-?\d+(?:\.\d+)?%)/g, '$1<span class="num">$2</span>');
+  h = h.replace(/\bbreached\b/gi, '<span class="dn">breached</span>');
+  const i = h.indexOf(" — ");
+  if(i > 0 && i < 45 && !h.slice(0,i).includes("<")) {
+    h = '<b class="tk">' + h.slice(0,i) + '</b> — ' + h.slice(i+3);
+  }
+  return h;
+}
+function renderSections(md){
+  const secs = parseBrief(md);
+  const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length));
+  if(!body.length) return null; // unknown format → caller falls back to raw
+  let h = "";
+  // header lines (book line etc.) as a quiet summary paragraph
+  const head = secs.find(s => s.key === "header");
+  if(head && head.paras.length){
+    h += `<div class="sec"><div class="para">${head.paras.map(fmtText).join("<br>")}</div></div>`;
+  }
+  for(const s of body){
+    h += `<div class="sec ${s.key}"><div class="sec-h">
+      <span class="dot" style="background:${s.color}"></span><h2>${esc(s.title)}</h2>
+      ${s.sub ? `<span class="sub">${esc(s.sub)}</span>` : ""}</div>`;
+    if(s.plain) h += `<div class="plain"><span class="pl">In plain English</span>${esc(s.plain)}</div>`;
+    for(const p of s.paras) h += `<div class="para">${fmtText(p)}</div>`;
+    for(const it of s.items) h += `<div class="itm">${fmtText(it)}</div>`;
+    if(s.key === "act" && s.items.length)
+      h += `<div class="disclaimer">Triggers + evidence only — never a trade recommendation.</div>`;
+    h += `</div>`;
+  }
+  return h;
 }
 
 function meter(label, d){
@@ -132,6 +248,8 @@ function render(){
   const breaches = Object.values(dk).filter(x=>x && x.breached).length;
   let h = "";
 
+  if(m.plain_overview) h += `<div class="plain big"><span class="pl">Today in plain English</span>${esc(m.plain_overview)}</div>`;
+
   h += `<div class="kpis">
     <div class="kpi"><div class="l">Book</div><div class="v">${m.book_sgd!=null ? (m.book_sgd/1e6).toFixed(2)+"M" : "n/a"}</div>
       <div class="s">${m.unrealized_pct!=null ? (m.unrealized_pct>=0?"+":"")+m.unrealized_pct+"% vs cost" : ""}</div></div>
@@ -141,17 +259,8 @@ function render(){
       <div class="s">of ${Object.keys(dk).length||"–"} caps</div></div>
   </div>`;
 
-  if(acts.length){
-    h += `<div class="card"><h2><span class="dot" style="background:var(--bad)"></span>Act today</h2>` +
-      acts.map(a=>`<div class="item"><b class="tk">${esc(a.ticker)}</b>${a.w_pct!=null?`<span class="badge">w ${a.w_pct}%</span>`:""}<br>${esc(a.reason||"")}</div>`).join("") +
-      `<div class="disclaimer">Triggers + evidence only — never a trade recommendation.</div></div>`;
-  } else {
-    h += `<div class="card"><h2><span class="dot" style="background:var(--good)"></span>Act today</h2>
-      <div class="item">No action required today.</div></div>`;
-  }
-
   if(Object.keys(dk).length){
-    h += `<div class="card"><h2><span class="dot" style="background:var(--warn)"></span>Derisk guardrails</h2>` +
+    h += `<div class="sec derisk"><div class="sec-h"><span class="dot" style="background:var(--accent)"></span><h2>Guardrails</h2></div>` +
       meter("NVDA single position", dk.single_nvda) +
       meter("Semi cluster", dk.semi_cluster) +
       meter("Tech sector", dk.sector_tech) +
@@ -159,22 +268,18 @@ function render(){
       meter("US market", dk.market_us) + `</div>`;
   }
 
-  if(m.watch && m.watch.length){
-    h += `<div class="card"><h2><span class="dot" style="background:var(--warn)"></span>Watch</h2>
-      <div class="item">${m.watch.map(esc).join(" · ")}</div></div>`;
-  }
-  if(m.health_changes){
-    h += `<div class="card"><h2><span class="dot" style="background:var(--accent)"></span>Health changes</h2>
-      <div class="item">${esc(m.health_changes)}</div>
-      ${m.moat_proxy && m.moat_proxy.length ? `<div class="item">Moat-erosion proxy (not a rating): ${m.moat_proxy.map(esc).join(", ")}</div>`:""}</div>`;
-  }
+  h += `<div id="viewtoggle">
+    <button class="${view==='read'?'sel':''}" onclick="view='read';render()">Formatted</button>
+    <button class="${view==='raw'?'sel':''}" onclick="view='raw';render()">Raw</button>
+  </div>`;
 
-  h += `<details open><summary>Full brief (${esc(b.run_date)})</summary><pre id="raw">${esc(b.brief_md)}</pre></details>`;
-  if(m.gaps && m.gaps.length){
-    h += `<div class="card"><h2><span class="dot" style="background:var(--tx3)"></span>Data gaps</h2>` +
-      m.gaps.map(g=>`<div class="item">${esc(g)}</div>`).join("") + `</div>`;
-  }
+  const formatted = view === "read" ? renderSections(b.brief_md) : null;
+  h += formatted !== null && view === "read"
+     ? formatted
+     : `<pre id="raw">${esc(b.brief_md)}</pre>`;
+
   $("#app").innerHTML = h;
+  window.scrollTo({top:0});
 }
 
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
