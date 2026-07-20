@@ -59,6 +59,7 @@ header h1 span{color:var(--accent)}
 .itm::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:2px;background:var(--line)}
 .sec.act .itm::before{background:var(--bad)}
 .sec.watch .itm::before{background:var(--warn)}
+.sec.opps .itm::before{background:var(--good)}
 .sec.derisk .itm::before{background:var(--accent)}
 .itm b.tk{color:var(--accent);font-weight:700}
 .para{padding:8px 0;font-size:15px;color:var(--tx2);line-height:1.6}
@@ -104,7 +105,7 @@ footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-he
 <footer>
   Read-only viewer · data written weekdays ~07:15 SGT by the Claude scheduled task<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:17-00:28
+  v2026:07:20-11:59
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -167,6 +168,7 @@ function renderDates(){
 const SECDEFS = [
   ["🔴", "act",    "Act today",      "var(--bad)"],
   ["🟡", "watch",  "Watch",          "var(--warn)"],
+  ["💡", "opps",   "Opportunity & Trend Signals", "var(--good)"],
   ["⚪", "fyi",    "FYI",            "var(--tx3)"],
   ["📊", "derisk", "Derisk",         "var(--accent)"],
   ["🧬", "health", "Health changes", "var(--good)"],
@@ -226,6 +228,8 @@ function renderSections(md){
     for(const it of s.items) h += `<div class="itm">${fmtText(it)}</div>`;
     if(s.key === "act" && s.items.length)
       h += `<div class="disclaimer">Triggers + evidence only — never a trade recommendation.</div>`;
+    if(s.key === "opps" && s.items.length)
+      h += `<div class="disclaimer">Signals = screening criteria met, not recommendations. The decision is yours.</div>`;
     h += `</div>`;
   }
   return h;
