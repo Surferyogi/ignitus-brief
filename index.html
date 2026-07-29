@@ -60,6 +60,8 @@ header h1 span{color:var(--accent)}
 .sec.act .itm::before{background:var(--bad)}
 .sec.watch .itm::before{background:var(--warn)}
 .sec.opps .itm::before{background:var(--good)}
+.sec.review .itm::before{background:var(--accent)}
+.sec.ahead .itm::before{background:var(--warn)}
 .sec.derisk .itm::before{background:var(--accent)}
 .itm b.tk{color:var(--accent);font-weight:700}
 .para{padding:8px 0;font-size:15px;color:var(--tx2);line-height:1.6}
@@ -103,9 +105,9 @@ footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-he
 <nav id="dates" aria-label="Brief history"></nav>
 <main id="app"></main>
 <footer>
-  Read-only viewer · data written weekdays ~07:15 SGT by the Claude scheduled task<br>
+  Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:20-11:59
+  v2026:07:27-12:28
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -159,8 +161,9 @@ function renderDates(){
   $("#bigsub").textContent = "";
   $("#dates").innerHTML = briefs.map((x,i)=>{
     const xd = dOf(x.run_date);
+    const wk = (x.source||"").includes("weekly");
     return `<button class="${i===sel?'sel':''}" onclick="sel=${i};renderDates();render()">
-      <span class="d">${DOWS[xd.getDay()].slice(0,3)}</span>${xd.getDate()} ${MONTHS[xd.getMonth()]}</button>`;
+      <span class="d">${wk ? "WEEK" : DOWS[xd.getDay()].slice(0,3)}</span>${xd.getDate()} ${MONTHS[xd.getMonth()]}</button>`;
   }).join("");
 }
 
@@ -168,7 +171,11 @@ function renderDates(){
 const SECDEFS = [
   ["🔴", "act",    "Act today",      "var(--bad)"],
   ["🟡", "watch",  "Watch",          "var(--warn)"],
-  ["💡", "opps",   "Opportunity & Trend Signals", "var(--good)"],
+  ["💡", "opps",   "Opportunities & Signals", "var(--good)"],
+  ["📈", "review", "Week in review", "var(--accent)"],
+  ["🌏", "bench",  "Sleeves vs benchmarks", "var(--accent)"],
+  ["🔝", "movers", "Top movers",     "var(--good)"],
+  ["📅", "ahead",  "Week ahead",     "var(--warn)"],
   ["⚪", "fyi",    "FYI",            "var(--tx3)"],
   ["📊", "derisk", "Derisk",         "var(--accent)"],
   ["🧬", "health", "Health changes", "var(--good)"],

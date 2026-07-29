@@ -1,8 +1,19 @@
-# Ignitus Brief — PWA (v2026:07:16-15:55)
+# Ignitus Brief — PWA (v2026:07:27-12:28)
 
-Read-only viewer for the daily weekday portfolio brief. The brief itself is produced by a
-Claude scheduled task (weekdays 07:15 SGT) which INSERTs one row per day into
-`public.brief_log` in the Ignitus Supabase project. This app only reads that table.
+Read-only viewer for the Ignitus portfolio briefs. The briefs are produced by Claude scheduled
+tasks which INSERT one row per run into `public.brief_log` in the Ignitus Supabase project.
+This app only reads that table.
+
+- **Daily brief** — Tue–Sat, starts 05:40 JST, in the app by ~06:00 JST (watchdog re-fires at
+  06:30 JST if the row is missing).
+- **Weekly review v2.0** — Monday, starts 05:40 JST. Five sections: portfolio performance last
+  week, each sleeve vs its index, top 3 movers over 7 days and 1 year, upcoming earnings /
+  dividends / macro events, and opportunities plus weakness to watch.
+
+Sections the renderer knows: 🔴 Act today · 🟡 Watch · 💡 Opportunities & Signals ·
+📈 Week in review · 🌏 Sleeves vs benchmarks · 🔝 Top movers · 📅 Week ahead · ⚪ FYI ·
+📊 Derisk · 🧬 Health changes · ⚠️ Data gaps. Lines beginning `💬` render as a
+**Key Highlights** callout inside their section.
 
 ## Files
 - `index.html` — the whole app (fetch, render, offline data fallback)
