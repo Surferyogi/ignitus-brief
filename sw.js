@@ -1,6 +1,6 @@
-/* Ignitus Brief service worker — v2026:07:27-12:28
+/* Ignitus Brief service worker — v2026:07:30-14:05
    Shell: cache-first. API data is cached by the page itself (Cache API, DATA_CACHE). */
-const SHELL_CACHE = "ignitus-shell-v8";
+const SHELL_CACHE = "ignitus-shell-v9";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {

@@ -16,10 +16,23 @@
   --tx:#e8ecf1; --tx2:#9aa5b1; --tx3:#6b7683;
   --accent:#5aa9e6; --good:#4cc38a; --warn:#e6b450; --bad:#e5645f;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  /* diverging ramp — red = down, blue = up, neutral gray midpoint (same pair as the
+     30 Jul action/heatmap artifact; CVD-safe, unlike red/green). Each step ships its
+     own text colour so contrast holds in both modes. */
+  --r1:#f1968e; --r1c:#0b0b0b; --r2:#e14c4a; --r2c:#ffffff;
+  --r3:#ba3334; --r3c:#ffffff; --r4:#902123; --r4c:#ffffff;
+  --b1:#86b6ef; --b1c:#0b0b0b; --b2:#3987e5; --b2c:#ffffff;
+  --b3:#256abf; --b3c:#ffffff; --b4:#184f95; --b4c:#ffffff;
+  --mid:#383835;  --midc:#c3c2b7;
 }
 @media (prefers-color-scheme: light){
   :root{--bg:#f4f6f8;--panel:#ffffff;--panel2:#eef1f5;--line:#dde3ea;
-        --tx:#1b2430;--tx2:#54606e;--tx3:#8a95a1;}
+        --tx:#1b2430;--tx2:#54606e;--tx3:#8a95a1;
+        --r1:#fdd5d1; --r1c:#0b0b0b; --r2:#ee9890; --r2c:#0b0b0b;
+        --r3:#dc514e; --r3c:#ffffff; --r4:#a5292b; --r4c:#ffffff;
+        --b1:#cde2fb; --b1c:#0b0b0b; --b2:#86b6ef; --b2c:#0b0b0b;
+        --b3:#3987e5; --b3c:#ffffff; --b4:#1c5cab; --b4c:#ffffff;
+        --mid:#f0efec;  --midc:#52514e;}
 }
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--tx);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -92,6 +105,78 @@ pre#raw{white-space:pre-wrap;word-wrap:break-word;font-family:var(--mono);font-s
 footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-height:1.7}
 #err{background:var(--bad);color:#fff;border-radius:10px;padding:10px 12px;font-size:13px;display:none;margin-bottom:10px}
 .disclaimer{font-size:12px;color:var(--tx3);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+
+/* ── FOCUS 10 ── */
+.sec.focus .itm::before{background:var(--accent)}
+.f10{border-top:1px solid var(--line);padding:11px 0 3px}
+.f10:first-of-type{border-top:none}
+.f10 summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.f10 summary::-webkit-details-marker{display:none}
+.f10 .rk{font-family:var(--mono);font-size:11px;color:var(--tx3);flex:0 0 auto;min-width:16px}
+.f10 .tk{color:var(--accent);font-weight:750;font-size:16px}
+.f10 .mv{font-variant-numeric:tabular-nums;font-weight:650;font-size:14px;margin-left:auto}
+.f10 .wt{font-size:12px;color:var(--tx2);font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:5px;flex-wrap:wrap;width:100%;margin-top:5px}
+.chip{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--tx2);background:var(--panel2)}
+.chip.hot{border-color:var(--bad);color:var(--bad)}
+.chip.warn{border-color:var(--warn);color:var(--warn)}
+.lad{margin:9px 0 4px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.lad .lr{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 9px;border-top:1px solid var(--line)}
+.lad .lr:first-child{border-top:none}
+.lad .lr .lb{flex:1 1 auto;color:var(--tx2)}
+.lad .lr .lp{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:650}
+.lad .lr .ld{font-family:var(--mono);font-size:11.5px;width:66px;text-align:right;color:var(--tx3)}
+.lad .lr.now{background:rgba(90,169,230,.12)}
+.lad .lr.now .lb{color:var(--accent);font-weight:700}
+.lad .lr.na .lp{color:var(--tx3);font-weight:400;font-family:inherit;font-size:12px}
+.f10 .wl{font-size:13.5px;color:var(--tx2);padding:2px 0 0 2px}
+.f10 .cp{font-size:13px;color:var(--tx2);border-left:3px solid var(--warn);padding:2px 0 2px 9px;margin:7px 0 2px}
+
+/* ── HEATMAPS ── */
+.hmwrap{position:relative;width:100%;margin:8px 0 2px}
+.hmbasis{font-size:12px;color:var(--tx3);margin:2px 0 8px}
+.hm{position:relative;width:100%;overflow:hidden;border-radius:10px}
+.tile{position:absolute;overflow:hidden;border-radius:3px;
+  box-shadow:0 0 0 1px var(--bg);padding:2px 3px;cursor:pointer;
+  font-variant-numeric:tabular-nums;line-height:1.12}
+.tile .tt{font-size:10px;font-weight:750;letter-spacing:-.2px;display:block;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .tp{font-size:9px;font-weight:600;opacity:.85;display:block}
+.tile.sm{padding:1px 2px}
+.ghdr{position:absolute;font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+  height:12px;line-height:12px;color:var(--tx);background:var(--bg);border-radius:0 0 5px 0;
+  padding:0 5px 0 3px;z-index:3;pointer-events:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gband{position:absolute;outline:1px solid var(--tx3);outline-offset:-1px;pointer-events:none;z-index:2;border-radius:4px}
+.hm-r4{background:var(--r4);color:var(--r4c)} .hm-r3{background:var(--r3);color:var(--r3c)}
+.hm-r2{background:var(--r2);color:var(--r2c)} .hm-r1{background:var(--r1);color:var(--r1c)}
+.hm-0 {background:var(--mid);color:var(--midc)}
+.hm-b1{background:var(--b1);color:var(--b1c)} .hm-b2{background:var(--b2);color:var(--b2c)}
+.hm-b3{background:var(--b3);color:var(--b3c)} .hm-b4{background:var(--b4);color:var(--b4c)}
+.leg{display:flex;align-items:center;gap:0;margin:10px 0 2px;font-size:10px;color:var(--tx3)}
+.leg i{display:block;height:12px;flex:1 1 0}
+.leg i:first-of-type{border-radius:3px 0 0 3px} .leg i:last-of-type{border-radius:0 3px 3px 0}
+.legx{display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);
+  font-variant-numeric:tabular-nums;margin-top:2px}
+.hmtip{font-size:13px;color:var(--tx2);min-height:20px;margin-top:8px;padding:7px 9px;
+  background:var(--panel2);border-radius:8px;font-variant-numeric:tabular-nums}
+.hmtip b{color:var(--accent)}
+.gstrip{font-size:12px;color:var(--tx2);margin-top:9px;line-height:1.75}
+.gstrip .gl{display:flex;gap:7px;border-top:1px solid var(--line);padding:3px 0}
+.gstrip .gl:first-child{border-top:none}
+.gstrip .gl span:first-child{flex:1 1 auto;color:var(--tx);font-weight:650}
+.gstrip .gl span{font-variant-numeric:tabular-nums}
+.tblScroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px}
+.tblScroll table{border-collapse:collapse;font-size:12.5px;width:100%}
+.tblScroll th,.tblScroll td{text-align:right;padding:4px 7px;white-space:nowrap;border-bottom:1px solid var(--line)}
+.tblScroll th{color:var(--tx3);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+.tblScroll td:first-child,.tblScroll th:first-child{text-align:left;font-weight:700;color:var(--accent)}
+.tblScroll td:nth-child(2),.tblScroll td:nth-child(3),
+.tblScroll th:nth-child(2),.tblScroll th:nth-child(3){text-align:left;color:var(--tx2);font-weight:400}
+details.rel>summary{cursor:pointer;font-size:12.5px;color:var(--accent);font-weight:650;margin-top:10px;list-style:none}
+details.rel>summary::-webkit-details-marker{display:none}
+.nadata{font-size:13px;color:var(--tx3);padding:6px 0}
 </style>
 </head>
 <body>
@@ -107,7 +192,7 @@ footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-he
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:27-12:28
+  v2026:07:30-14:05
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -176,6 +261,9 @@ const SECDEFS = [
   ["🌏", "bench",  "Sleeves vs benchmarks", "var(--accent)"],
   ["🔝", "movers", "Top movers",     "var(--good)"],
   ["📅", "ahead",  "Week ahead",     "var(--warn)"],
+  ["🎯", "focus",  "Focus 10",       "var(--accent)"],
+  ["🗺️", "expo",   "Exposure map",   "var(--accent)"],
+  ["🗺",  "expo",   "Exposure map",   "var(--accent)"],
   ["⚪", "fyi",    "FYI",            "var(--tx3)"],
   ["📊", "derisk", "Derisk",         "var(--accent)"],
   ["🧬", "health", "Health changes", "var(--good)"],
@@ -220,9 +308,10 @@ function fmtText(s){
   }
   return h;
 }
-function renderSections(md){
+function renderSections(md, skip){
   const secs = parseBrief(md);
-  const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length));
+  const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length)
+                               && !(skip && skip.has(s.key)));
   if(!body.length) return null; // unknown format → caller falls back to raw
   let h = "";
   // header lines intentionally not rendered (date + return tiles cover them; book value hidden by CK request)
@@ -287,7 +376,284 @@ function retTile(label, v, sub, flows){
   return `<div class="kpi"><div class="l">${label}</div><div class="v" style="color:${col}">${txt}</div>
     <div class="s">${v==null ? "no history yet" : esc(sub||"") + (flows ? " · incl. flows" : "")}</div></div>`;
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   FOCUS 10 + EXPOSURE HEATMAPS
+   Every figure comes from the brief row's own metrics — nothing is derived
+   from anything the scheduled run did not itself compute and store. A key
+   that is absent prints why it is absent; it is never back-filled.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const pct1 = v => (v==null ? "n/a" : (v>=0?"+":"−") + Math.abs(v).toFixed(1) + "%");
+const sgd0 = v => (v==null ? "n/a" : (v>=0?"+":"−") + "S$" + Math.round(Math.abs(v)).toLocaleString("en-SG"));
+const STEPS = ["hm-r4","hm-r3","hm-r2","hm-r1","hm-0","hm-b1","hm-b2","hm-b3","hm-b4"];
+
+/* colour-scale domain: the 90th percentile of |move|, snapped to 0.5, clamped 1–10.
+   Printed in the legend so the reader always knows what saturation means. */
+function heatDomain(vals){
+  const a = vals.filter(v=>v!=null).map(Math.abs).sort((x,y)=>x-y);
+  if(!a.length) return 2;
+  const q = a[Math.min(a.length-1, Math.floor(a.length*0.9))];
+  return Math.max(1, Math.min(10, Math.round(q*2)/2 || 1));
+}
+function stepOf(v, d){
+  if(v==null) return "hm-0";
+  if(Math.abs(v) <= 0.10) return "hm-0";
+  if(v < 0) return v <= -d ? "hm-r4" : v <= -d/2 ? "hm-r3" : v <= -d/4 ? "hm-r2" : "hm-r1";
+  return v >= d ? "hm-b4" : v >= d/2 ? "hm-b3" : v >= d/4 ? "hm-b2" : "hm-b1";
+}
+
+/* squarified treemap (Bruls/Huizing/van Wijk). vals must be descending. */
+function squarify(vals, rect){
+  const out = [];
+  let items = vals.slice(), r = {x:rect.x, y:rect.y, w:rect.w, h:rect.h};
+  const worst = (row, len, sc) => {
+    const s = row.reduce((a,b)=>a+b,0)*sc;
+    if(s <= 0 || len <= 0) return Infinity;
+    const mx = Math.max.apply(null,row)*sc, mn = Math.min.apply(null,row)*sc;
+    return Math.max(len*len*mx/(s*s), (s*s)/(len*len*mn));
+  };
+  let guard = 0;
+  while(items.length && guard++ < 500){
+    const total = items.reduce((a,b)=>a+b,0);
+    if(total <= 0 || r.w <= 0 || r.h <= 0){ items.forEach(()=>out.push({x:r.x,y:r.y,w:0,h:0})); break; }
+    const sc = (r.w*r.h)/total, len = Math.min(r.w, r.h);
+    let row = [items[0]], k = 1;
+    while(k < items.length && worst(row.concat([items[k]]), len, sc) <= worst(row, len, sc)){ row.push(items[k]); k++; }
+    const rowSum = row.reduce((a,b)=>a+b,0)*sc;
+    if(r.w >= r.h){
+      const rw = rowSum/r.h; let yy = r.y;
+      for(const v of row){ const hh = v*sc/rw; out.push({x:r.x,y:yy,w:rw,h:hh}); yy += hh; }
+      r = {x:r.x+rw, y:r.y, w:r.w-rw, h:r.h};
+    }else{
+      const rh = rowSum/r.w; let xx = r.x;
+      for(const v of row){ const ww = v*sc/rh; out.push({x:xx,y:r.y,w:ww,h:rh}); xx += ww; }
+      r = {x:r.x, y:r.y+rh, w:r.w, h:r.h-rh};
+    }
+    items = items.slice(k);
+  }
+  return out;
+}
+
+/* group rows by a key, value-weighted; returns groups desc plus value-desc members */
+function groupBy(rows, key){
+  const g = {};
+  for(const r of rows){
+    const k = r[key] || "not classified";
+    (g[k] = g[k] || {name:k, value:0, n:0, chg:0, chgbase:0, rows:[]});
+    g[k].value += r.value; g[k].n++; g[k].rows.push(r);
+    if(r.chg_pct != null){ g[k].chg += r.chg_pct * r.value; g[k].chgbase += r.value; }
+  }
+  const out = Object.values(g);
+  for(const x of out){
+    x.chg_pct = x.chgbase > 0 ? x.chg/x.chgbase : null;   // value-weighted mean
+    x.rows.sort((a,b)=>b.value-a.value);
+  }
+  out.sort((a,b)=>b.value-a.value);
+  return out;
+}
+
+function posRows(m){
+  const px = m.positions_x;
+  if(!px || typeof px !== "object" || !Object.keys(px).length) return null;
+  const rows = [];
+  for(const tk of Object.keys(px)){
+    const v = px[tk] || {};
+    const val = v.value_sgd != null ? Number(v.value_sgd) : null;
+    if(val == null || !(val > 0)) continue;
+    rows.push({ticker:tk, mkt:v.mkt || "not classified", sector:v.sector || "not classified",
+               value:val, price:v.price!=null?Number(v.price):null, ccy:v.ccy||null,
+               chg_pct:v.chg_pct!=null?Number(v.chg_pct):null,
+               chg_sgd:v.chg_sgd!=null?Number(v.chg_sgd):null});
+  }
+  if(!rows.length) return null;
+  const tot = rows.reduce((a,b)=>a+b.value,0);
+  rows.forEach(r => r.w_pct = tot>0 ? r.value/tot*100 : null);
+  rows.sort((a,b)=>b.value-a.value);
+  rows.total = tot;
+  return rows;
+}
+
+/* Build one map container. Layout happens after insertion in drawHeat() — the
+   squarified aspect ratios need the real pixel width, which is unknown here. */
+let HEAT = {};   // id -> {groups, dom, height}; reset on every render()
+function heatBlock(id, title, rows, key, height){
+  const groups = groupBy(rows, key);
+  const dom = heatDomain(rows.map(r=>r.chg_pct));
+  HEAT[id] = {groups, dom, height};
+  const strip = groups.map(g =>
+    `<div class="gl"><span>${esc(g.name)}</span><span>${g.value/rows.total*100 >= 0.05 ? (g.value/rows.total*100).toFixed(1) : "<0.1"}%</span>`+
+    `<span>${g.n} pos</span><span style="color:${g.chg_pct==null?'var(--tx3)':(g.chg_pct>=0?'var(--good)':'var(--bad)')}">${pct1(g.chg_pct)}</span></div>`
+  ).join("");
+  return `<div class="hmwrap"><div class="sec-h" style="margin-bottom:2px">
+      <span class="dot" style="background:var(--accent)"></span><h2>${esc(title)}</h2>
+      <span class="sub">${groups.length} groups · ${rows.length} pos</span></div>
+    <div class="hm" id="${id}" style="height:${height}px"></div>
+    <div class="hmtip" id="${id}_tip">Tap a tile for its figures.</div>
+    <div class="leg">${STEPS.map(c=>`<i class="${c}"></i>`).join("")}</div>
+    <div class="legx"><span>−${dom.toFixed(1)}% or worse</span><span>flat</span><span>+${dom.toFixed(1)}% or better</span></div>
+    <div class="gstrip">${strip}</div></div>`;
+}
+
+function drawHeat(){
+  for(const id of Object.keys(HEAT)){
+    const el = document.getElementById(id);
+    if(!el) continue;
+    const H = HEAT[id], W = el.clientWidth, Ht = H.height;
+    if(!W){ continue; }
+    const gvals = H.groups.map(g=>g.value);
+    const grects = squarify(gvals, {x:0,y:0,w:W,h:Ht});
+    let html = "";
+    H.groups.forEach((g, gi) => {
+      const gr = grects[gi];
+      if(!(gr.w > 0.5 && gr.h > 0.5)){
+        g.undrawn = true; return;
+      }
+      // reserve a header strip when the group box is tall enough to spare it
+      const hdr = (gr.h >= 26 && gr.w >= 46) ? 12 : 0;
+      if(hdr) html += `<div class="ghdr" style="left:${gr.x}px;top:${gr.y}px;max-width:${gr.w}px">${esc(g.name)}</div>`;
+      html += `<div class="gband" style="left:${gr.x}px;top:${gr.y}px;width:${gr.w}px;height:${gr.h}px"></div>`;
+      const inner = {x:gr.x+1, y:gr.y+1+hdr, w:Math.max(0,gr.w-2), h:Math.max(0,gr.h-2-hdr)};
+      const trects = squarify(g.rows.map(r=>r.value), inner);
+      g.rows.forEach((r, i) => {
+        const t = trects[i];
+        if(!t || t.w < 1.5 || t.h < 1.5){ r.undrawn = true; return; }
+        r.undrawn = false;
+        const showT = t.w >= 30 && t.h >= 13;
+        const showP = t.w >= 34 && t.h >= 25;
+        html += `<div class="tile ${stepOf(r.chg_pct,H.dom)}${t.h<18?' sm':''}" `+
+          `style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px" `+
+          `data-hm="${id}" data-tk="${esc(r.ticker)}" title="${esc(r.ticker)} ${pct1(r.chg_pct)}">`+
+          (showT?`<span class="tt">${esc(r.ticker)}</span>`:"")+
+          (showP?`<span class="tp">${pct1(r.chg_pct)}</span>`:"")+`</div>`;
+      });
+    });
+    el.innerHTML = html;
+    // honesty note: name every group/position the map could not draw at this size
+    const hid = [];
+    H.groups.forEach(g => {
+      if(g.undrawn) hid.push(g.name + " (group too small to draw)");
+      else g.rows.forEach(r => { if(r.undrawn) hid.push(r.ticker); });
+    });
+    const tip = document.getElementById(id+"_tip");
+    if(tip) tip.dataset.note = hid.length
+      ? hid.length + " not drawn at this width: " + hid.slice(0,14).join(", ") + (hid.length>14?" …":"") + " — see the table below."
+      : "";
+    if(tip && !tip.dataset.touched) tip.textContent = "Tap a tile for its figures." + (hid.length ? " " + tip.dataset.note : "");
+  }
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest(".tile"); if(!t) return;
+  const H = HEAT[t.dataset.hm]; if(!H) return;
+  let row = null;
+  for(const g of H.groups){ const f = g.rows.find(r=>r.ticker===t.dataset.tk); if(f){ row = f; break; } }
+  const tip = document.getElementById(t.dataset.hm+"_tip"); if(!tip || !row) return;
+  tip.dataset.touched = "1";
+  const col = row.chg_pct==null ? "var(--tx3)" : (row.chg_pct>=0?"var(--good)":"var(--bad)");
+  tip.innerHTML = `<b>${esc(row.ticker)}</b> · ${esc(row.mkt)} · ${esc(row.sector)} · `+
+    `${fmtSGD(row.value)} · ${row.w_pct!=null?row.w_pct.toFixed(2)+"% of book":"weight n/a"} · `+
+    `<span style="color:${col};font-weight:650">${pct1(row.chg_pct)}</span>`+
+    (row.chg_sgd!=null?` (${sgd0(row.chg_sgd)})`:"")+
+    (row.price!=null?` · last ${row.price.toLocaleString("en-SG")}${row.ccy?" "+esc(row.ccy):""}`:"");
+});
+window.addEventListener("resize", () => { clearTimeout(window._hmt); window._hmt = setTimeout(drawHeat, 150); });
+
+function posTable(rows){
+  const tr = rows.map(r => `<tr><td>${esc(r.ticker)}</td><td>${esc(r.mkt)}</td><td>${esc(r.sector)}</td>`+
+    `<td>${Math.round(r.value).toLocaleString("en-SG")}</td><td>${r.w_pct!=null?r.w_pct.toFixed(2):"n/a"}</td>`+
+    `<td style="color:${r.chg_pct==null?'var(--tx3)':(r.chg_pct>=0?'var(--good)':'var(--bad)')}">${pct1(r.chg_pct)}</td></tr>`).join("");
+  return `<details class="rel"><summary>Show all ${rows.length} positions as a table ▾</summary>
+    <div class="tblScroll"><table><thead><tr><th>Ticker</th><th>Mkt</th><th>Sector</th>
+    <th>Value SGD</th><th>Wt %</th><th>Move</th></tr></thead><tbody>${tr}</tbody></table></div></details>`;
+}
+
+function expoBlock(m){
+  const rows = posRows(m);
+  if(!rows) return `<div class="sec expo"><div class="sec-h">
+      <span class="dot" style="background:var(--accent)"></span><h2>Exposure map</h2></div>
+      <div class="nadata">not available for this brief — the heatmaps need <code>metrics.positions_x</code>,
+      which the daily brief writes from v8.8 and the weekly review from v2.1 onward. Earlier rows were written
+      before that key existed; nothing is reconstructed for them.</div></div>`;
+  const hb = m.heat_basis || {};
+  const basis = hb.label
+    ? esc(hb.label) + (hb.from_date ? " · since " + esc(hb.from_date) : "") + (hb.note ? " · " + esc(hb.note) : "")
+    : "colour basis not stated by the run — treat the shading as unlabelled";
+  const nMissing = rows.filter(r=>r.chg_pct==null).length;
+  return `<div class="sec expo">
+    <div class="hmbasis">Tile area = position value in SGD. Colour = ${basis}.`+
+    (nMissing?` ${nMissing} position${nMissing>1?"s":""} had no move available and show neutral gray.`:"")+`</div>`
+    + heatBlock("hm_mkt","By market country", rows, "mkt", 300)
+    + heatBlock("hm_sec","By sector", rows, "sector", 400)
+    + posTable(rows)
+    + `<div class="disclaimer">Sizes and moves are arithmetic from the brief's own stored figures — not a view on any position.</div>
+  </div>`;
+}
+
+function focusBlock(m){
+  const f = m.focus10;
+  if(!Array.isArray(f) || !f.length) return `<div class="sec focus"><div class="sec-h">
+      <span class="dot" style="background:var(--accent)"></span><h2>Focus 10</h2></div>
+      <div class="nadata">not available for this brief — the ranked list needs <code>metrics.focus10</code>,
+      written by the daily brief from v8.8 and the weekly review from v2.1 onward.</div></div>`;
+  const card = (r, i) => {
+    const mv = r.chg_pct!=null ? r.chg_pct : null;
+    const col = mv==null ? "var(--tx3)" : (mv>=0?"var(--good)":"var(--bad)");
+    const chips = (r.tags||[]).map(t=>{
+      const u = String(t).toUpperCase();
+      const cls = /EARN D0|52W LOW|CAP NEAR|WEAK/.test(u) ? "chip hot"
+                : /MIXED|BELOW SMA200|52W HIGH/.test(u) ? "chip warn" : "chip";
+      return `<span class="${cls}">${esc(t)}</span>`;
+    }).join("");
+    // ascending ladder with the live price slotted at its true position, so "above" and
+    // "below" are visible rather than asserted. Rungs with no price fall to the bottom.
+    const px2 = v => Number(v).toLocaleString("en-SG",{minimumFractionDigits:2, maximumFractionDigits:2});
+    const rungs = (r.levels||[]).filter(L => L.px!=null).map(L => ({...L, px:Number(L.px)}));
+    if(r.price!=null) rungs.push({label:"Last price this run", px:Number(r.price), now:true});
+    rungs.sort((a,b) => a.px - b.px);
+    const missing = (r.levels||[]).filter(L => L.px==null);
+    const lad = rungs.map(L =>
+      `<div class="lr ${L.now?"now":""}"><span class="lb">${esc(L.label||"")}</span>`+
+      `<span class="lp">${px2(L.px)}</span>`+
+      `<span class="ld">${L.now ? "now" : (L.delta_pct!=null ? pct1(Number(L.delta_pct)) : esc(L.side||""))}</span></div>`
+    ).join("") + missing.map(L =>
+      `<div class="lr na"><span class="lb">${esc(L.label||"")}</span>`+
+      `<span class="lp">${esc(L.note||"not available")}</span><span class="ld"></span></div>`
+    ).join("");
+    // a watch item is either a plain string or {k,v,src}; render both, keep the source visible
+    const wline = w => {
+      if(w==null) return "";
+      if(typeof w === "string") return fmtText(w);
+      if(typeof w === "object"){
+        const k = w.k!=null ? `<b>${esc(String(w.k))}</b> — ` : "";
+        const v = w.v!=null ? fmtText(String(w.v)) : "";
+        const s = w.src!=null ? ` <span style="color:var(--tx3)">[${esc(String(w.src))}]</span>` : "";
+        return (k||v||s) ? k+v+s : "";
+      }
+      return fmtText(String(w));
+    };
+    return `<details class="f10"${i===0?" open":""}><summary>
+        <span class="rk">${r.rank!=null?r.rank:i+1}</span>
+        <span class="tk">${esc(r.ticker||"?")}</span>
+        <span class="wt">${r.w_pct!=null?Number(r.w_pct).toFixed(1)+"% of book":""}</span>
+        <span class="mv" style="color:${col}">${pct1(mv)}${r.chg_sgd!=null?" · "+sgd0(r.chg_sgd):""}</span>
+        ${chips?`<span class="chips">${chips}</span>`:""}
+      </summary>
+      ${lad?`<div class="lad">${lad}</div>
+        <div class="wl" style="font-size:11.5px;color:var(--tx3)">Reference levels, low to high, with the last price in its true slot. The
+        right column is each level's distance from that last price. Arithmetic from price history and the cap formulas — not targets.</div>`:""}
+      ${(r.watch||[]).map(w=>{const t=wline(w); return t?`<div class="wl">• ${t}</div>`:"";}).join("")}
+      ${r.counterpoint?`<div class="cp">${fmtText(String(r.counterpoint))}</div>`:""}
+    </details>`;
+  };
+  return `<div class="sec focus"><div class="sec-h">
+      <span class="dot" style="background:var(--accent)"></span><h2>Focus 10</h2>
+      <span class="sub">ranked by attention</span></div>
+    ${f.map(card).join("")}
+    <div class="disclaimer">A ranking of where the money moved and what is pending — not a to-do list and not
+    a recommendation. Every level is arithmetic; the decision is yours.</div></div>`;
+}
+
 function render(){
+  HEAT = {};
   const b = briefs[sel], m = b.metrics || {};
   const acts = m.act || [];
   const dk = m.derisk || {};
@@ -319,17 +685,24 @@ function render(){
       meter("US market", dk.market_us) + `</div>`;
   }
 
+  h += focusBlock(m);
+  h += expoBlock(m);
+
   h += `<div id="viewtoggle">
     <button class="${view==='read'?'sel':''}" onclick="view='read';render()">Formatted</button>
     <button class="${view==='raw'?'sel':''}" onclick="view='raw';render()">Raw</button>
   </div>`;
 
-  const formatted = view === "read" ? renderSections(b.brief_md) : null;
+  const skip = new Set();
+  if(Array.isArray(m.focus10) && m.focus10.length) skip.add("focus");
+  if(posRows(m)) skip.add("expo");
+  const formatted = view === "read" ? renderSections(b.brief_md, skip) : null;
   h += formatted !== null && view === "read"
      ? formatted
      : `<pre id="raw">${esc(b.brief_md)}</pre>`;
 
   $("#app").innerHTML = h;
+  drawHeat();
   window.scrollTo({top:0});
 }
 
