@@ -192,7 +192,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:30-14:05
+  v2026:07:31-09:20
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -273,7 +273,11 @@ const SECDEFS = [
 function parseBrief(md){
   const secs = []; let cur = {key:"header", title:"", color:"var(--tx3)", items:[], paras:[]};
   for(const raw of md.split("\n")){
-    const t = raw.trim();
+    // Producers do not agree on heading syntax: the primary daily writes "🔴 ACT TODAY",
+    // the watchdog writes "## 🔴 ACT". Strip a leading markdown heading marker (and any
+    // bold wrapper) so a section is recognised either way — otherwise the whole brief
+    // falls through as one unparsed block and the 💬 Key Highlights never render.
+    const t = raw.trim().replace(/^#{1,6}\s*/, "").replace(/^\*\*\s*/, "");
     const def = SECDEFS.find(s => t.startsWith(s[0]));
     if(def){
       secs.push(cur);
@@ -288,7 +292,11 @@ function parseBrief(md){
     }
     if(!t) continue;
     if(t.startsWith("💬")) { cur.plain = (cur.plain ? cur.plain + " " : "") + t.slice(2).trim(); continue; }
-    if(t.startsWith("•")) cur.items.push(t.slice(1).trim());
+    // "•", "- " and "* " are all bullets. Every producer to date has used "- ", so before
+    // this every bullet fell through as a paragraph and the ACT / Signals disclaimers —
+    // which are gated on items.length — never appeared at all.
+    const bm = t.match(/^(?:•\s*|[-*]\s)/);
+    if(bm) cur.items.push(t.slice(bm[0].length).trim());
     else if(cur.plain && /^\s/.test(raw)) cur.plain += " " + t;
     else if(cur.items.length && /^\s/.test(raw)) cur.items[cur.items.length-1] += " " + t;
     else cur.paras.push(t);

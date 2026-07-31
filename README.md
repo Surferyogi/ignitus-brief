@@ -1,12 +1,12 @@
-# Ignitus Brief — PWA (v2026:07:30-14:05)
+# Ignitus Brief — PWA (v2026:07:31-09:20)
 
 Read-only viewer for the Ignitus portfolio briefs. The briefs are produced by Claude scheduled
 tasks which INSERT one row per run into `public.brief_log` in the Ignitus Supabase project.
 This app only reads that table.
 
-- **Daily brief v8.8** — Tue–Sat, starts 05:40 JST, in the app by ~06:00 JST (watchdog re-fires at
+- **Daily brief v8.9** — Tue–Sat, starts 05:40 JST, in the app by ~06:00 JST (watchdog re-fires at
   06:30 JST if the row is missing).
-- **Weekly review v2.1** — Monday, starts 05:40 JST. Seven sections: portfolio performance last
+- **Weekly review v2.2** — Monday, starts 05:40 JST. Seven sections: portfolio performance last
   week, each sleeve vs its index, top 3 movers over 7 days and 1 year, upcoming earnings /
   dividends / macro events, opportunities plus weakness to watch, Focus 10, and the exposure map.
 
@@ -14,6 +14,16 @@ Sections the renderer knows: 🔴 Act today · 🟡 Watch · 💡 Opportunities 
 🎯 Focus 10 · 🗺️ Exposure map · 📈 Week in review · 🌏 Sleeves vs benchmarks · 🔝 Top movers ·
 📅 Week ahead · ⚪ FYI · 📊 Derisk · 🧬 Health changes · ⚠️ Data gaps. Lines beginning `💬` render
 as a **Key Highlights** callout inside their section.
+
+## Heading and bullet tolerance (fixed 2026-07-31)
+The three producers do not agree on markdown syntax. The primary daily writes `🔴 ACT TODAY`;
+the watchdog wrote `## 🔴 ACT`. The parser matched on a leading emoji only, so on watchdog days
+**no section parsed at all** — the app fell back to printing the raw markdown and no 💬 Key
+Highlights appeared. The parser now strips a leading `#`…`######` and a `**` wrapper before
+matching, which repairs already-stored rows without touching the database, and all three prompts
+now pin bare-emoji headers. The parser also accepts `- ` and `* ` as bullets alongside `•` —
+every producer to date has used `- `, so before this fix the ACT and Signals disclaimers (which
+only render when a section has bullet items) had never appeared.
 
 ## The two rich sections
 🎯 **Focus 10** and 🗺️ **Exposure map** are drawn from `metrics`, not from the markdown. When the
@@ -35,12 +45,12 @@ than back-filling anything.
 ## Files
 - `index.html` — the whole app (fetch, render, treemaps, offline data fallback)
 - `manifest.webmanifest` — install metadata
-- `sw.js` — service worker (caches the app shell for offline; `SHELL_CACHE = ignitus-shell-v9`)
+- `sw.js` — service worker (caches the app shell for offline; `SHELL_CACHE = ignitus-shell-v10`)
 - `icon-192.png`, `icon-512.png`
 
-Do **not** deploy anything else from this folder. `fixture.json` and the `shot_*.png` /
-`p_*.png` / `chk_*.png` screenshots are local test artefacts that contain real position data —
-they must never be uploaded to a public host.
+Do **not** deploy anything else from this folder. `fixture.json`, `fixture_live.json` and the
+`shot_*` / `p_*` / `chk_*` / `v_*` / `sl_*` / `live_*` PNGs are local test artefacts that contain
+real position data — they must never be uploaded to a public host.
 
 ## Deploy (any static HTTPS host — service workers require HTTPS)
 Manual, no build step:
@@ -49,7 +59,7 @@ Manual, no build step:
 3. **GitHub Pages** — push the 5 files to a repo → Settings → Pages → deploy from branch.
 
 **After redeploying, the shell cache name must change or phones keep the old app.** It is already
-bumped to `ignitus-shell-v9` in `sw.js`; a redeploy is what makes that take effect. If the phone
+bumped to `ignitus-shell-v10` in `sw.js`; a redeploy is what makes that take effect. If the phone
 still shows the old version, close all tabs of the app and reopen, or uninstall and reinstall.
 
 ## Install on your phone
@@ -70,7 +80,7 @@ Claude to add Supabase Auth (email OTP) in front of it if you want real access c
 ## Data contract
 The app reads `brief_log(run_date, run_ts, brief_md, metrics, source)` and parses these
 `metrics` keys: `book_sgd`, `unrealized_pct`, `act[]`, `act_suppressed`, `derisk{...}`,
-`watch[]`, `health_changes`, `moat_proxy[]`, `gaps[]`, and — from daily v8.8 / weekly v2.1 —
+`watch[]`, `health_changes`, `moat_proxy[]`, `gaps[]`, and — from daily v8.9 / weekly v2.2 —
 `focus10[{rank, ticker, name, w_pct, value_sgd, price, chg_pct, chg_sgd, tags[], levels[{label,
 px|null, delta_pct|null, side, note}], watch[{k, v, src}], counterpoint}]`,
 `positions_x{ticker → {mkt, sector, ccy, shares, price, value_sgd, chg_pct, chg_sgd}}` and
