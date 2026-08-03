@@ -192,7 +192,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:07:31-09:20
+  v2026:08:03-05:22
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -226,7 +226,7 @@ async function load(){
     if(!net){ showErr("Cannot reach Supabase and no cached brief is available. "+e.message); return; }
   }
   briefs = net;
-  // lightweight book/cost history for Δ1d / Δ1y (cached the same way)
+  // lightweight book/cost history for Δ1d / Δ7d (cached the same way)
   try{
     const r2 = await fetch(API_HIST, {headers:{apikey:KEY, Authorization:"Bearer "+KEY}});
     if(r2.ok){ hist = await r2.clone().json(); try{ const c = await caches.open(DATA_CACHE); await c.put(API_HIST, r2); }catch(e){} }
@@ -267,6 +267,7 @@ const SECDEFS = [
   ["⚪", "fyi",    "FYI",            "var(--tx3)"],
   ["📊", "derisk", "Derisk",         "var(--accent)"],
   ["🧬", "health", "Health changes", "var(--good)"],
+  ["🌐", "macro",  "Market backdrop", "var(--accent)"],
   ["⚠️", "gaps",   "Data gaps",      "var(--warn)"],
   ["⚠",  "gaps",   "Data gaps",      "var(--warn)"]
 ];
@@ -283,11 +284,37 @@ function parseBrief(md){
       secs.push(cur);
       let rest = t.slice(def[0].length).trim();
       cur = {key:def[1], title:def[2], color:def[3], sub:"", items:[], paras:[]};
-      // pull the parenthetical / trailing info out of e.g. "ACT TODAY (3 of 12 …)" or "DERISK [ … ]"
-      const mm = rest.match(/\(([^)]*)\)/);
-      if(mm) cur.sub = mm[1];
-      const after = rest.split(":").slice(1).join(":").trim();
+      // Early watchdog runs put the entire section — heading, summary, 💬 takeaway and body —
+      // on ONE line. Split the 💬 off first, or it ends up inside the heading.
+      const ci = rest.indexOf("💬");
+      if(ci >= 0){ const pl = rest.slice(ci+2).trim(); if(pl) cur.plain = pl; rest = rest.slice(0,ci).trim(); }
+      // Split on the first colon — but not one inside a source tag. "DERISK — 3 of 5 caps
+      // breached [smart-api:alerts]" must not be cut at the colon in "smart-api:alerts".
+      // Mask bracketed spans to equal-length blanks so the index still lines up with rest.
+      // (a parenthetical can hold one too: "HEALTH CHANGES (14 screened: 0 changes)")
+      const masked = rest.replace(/\[[^\]]*\]|\([^)]*\)/g, m => " ".repeat(m.length));
+      const ci2 = masked.indexOf(":");
+      const base = ci2 >= 0 ? rest.slice(0, ci2) : rest;
+      const after = ci2 >= 0 ? rest.slice(ci2+1).trim() : "";
       if(after) cur.paras.push(after);
+      // The heading shown is the brief's OWN wording whenever it gives one; the SECDEFS name
+      // is only a fallback for a bare emoji. The producers reuse the same emoji for different
+      // sections — the 2026-07-31 watchdog wrote "📊 PERFORMANCE" and "⚠️ DERISK & INTEGRITY",
+      // which displayed as "DERISK" and "DATA GAPS": headings that contradicted the content
+      // beneath them. Reading the heading off the brief repairs every stored row with no
+      // database write and no producer change.
+      const cut  = base.search(/\s[·—–]\s|\s-\s/);
+      const name = (cut>0 ? base.slice(0,cut) : base).replace(/\([^)]*\)/g,"").replace(/\[[^\]]*\]/g,"").trim();
+      // source tags belong in the body, where fmtText styles them — not in the heading row
+      const tail = cut>0 ? base.slice(cut).replace(/^\s*[·—–-]\s*/,"").replace(/\[[^\]]*\]/g,"").trim() : "";
+      const par  = ((base.match(/\(([^)]*)\)/) || [])[1] || "").replace(/\[[^\]]*\]/g,"").trim();
+      if(name && name.length <= 48) cur.title = name;
+      // the qualifier after a dash — "DERISK — 0 of 5 caps breached" — is real information and
+      // used to be dropped entirely; keep it, but never let it crowd the heading row
+      if(tail && tail.length <= 56) cur.sub = tail;
+      else if(par && par.length <= 56) cur.sub = par;
+      else if(tail) cur.paras.push(tail);
+      else if(par) cur.paras.push(par);
       continue;
     }
     if(!t) continue;
@@ -318,7 +345,9 @@ function fmtText(s){
 }
 function renderSections(md, skip){
   const secs = parseBrief(md);
-  const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length)
+  // a 💬 takeaway alone is enough to render a section — the early watchdog runs wrote the
+  // whole section on the heading line, so those rows have plain text and nothing else
+  const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length || s.plain)
                                && !(skip && skip.has(s.key)));
   if(!body.length) return null; // unknown format → caller falls back to raw
   let h = "";
@@ -356,26 +385,33 @@ function meter(label, d){
 function retvs(selDate, m){
   const rows = hist.filter(r => r.book != null).sort((a,b)=> a.run_date < b.run_date ? -1 : 1);
   const here = rows.find(r => r.run_date === selDate);
-  const out = {d1:null, d1src:null, d1flows:false, y1:null, y1src:null, y1flows:false};
+  const out = {d1:null, d1src:null, d1flows:false, w1:null, w1src:null, w1flows:false};
   if(here){
     const prev = [...rows].reverse().find(r => r.run_date < selDate);
     if(prev){
       out.d1 = (here.book/prev.book - 1)*100; out.d1src = prev.run_date;
       out.d1flows = here.cost!=null && prev.cost!=null && Math.abs(here.cost/prev.cost - 1) > 0.001;
     }
-    const tgt = new Date(dOf(selDate).getTime() - 365*864e5);
-    let best=null, bestGap=11;
+    // Week-ago comparison. The 365-day version this replaced could never resolve —
+    // brief_log only begins mid-2026, so the tile read "no history yet" every day.
+    // Tolerance is ±3 days, not the old ±10: briefs run Tue–Sat plus the Monday
+    // weekly, so a wider window would silently match a 4-day-old row and label it
+    // "last week". The exact row used is always printed under the figure.
+    const tgt = new Date(dOf(selDate).getTime() - 7*864e5);
+    let best=null, bestGap=3.5;
     for(const r of rows){
       const gap = Math.abs((dOf(r.run_date)-tgt)/864e5);
       if(r.run_date < selDate && gap < bestGap){ best=r; bestGap=gap; }
     }
     if(best){
-      out.y1 = (here.book/best.book - 1)*100; out.y1src = best.run_date;
-      out.y1flows = here.cost!=null && best.cost!=null && Math.abs(here.cost/best.cost - 1) > 0.001;
+      out.w1 = (here.book/best.book - 1)*100; out.w1src = best.run_date;
+      out.w1flows = here.cost!=null && best.cost!=null && Math.abs(here.cost/best.cost - 1) > 0.001;
     }
   }
   if(out.d1==null && m.ret_1d_pct!=null){ out.d1 = m.ret_1d_pct; out.d1src = "stored"; }
-  if(out.y1==null && m.ret_1y_pct!=null){ out.y1 = m.ret_1y_pct; out.y1src = "stored"; }
+  // Only the weekly review stores its own week figure. ret_1y_pct is NOT a valid
+  // fallback here — it answers a different question and would be mislabelled.
+  if(out.w1==null && m.week && m.week.delta_pct!=null){ out.w1 = m.week.delta_pct; out.w1src = "stored"; }
   return out;
 }
 function retTile(label, v, sub, flows){
@@ -673,7 +709,7 @@ function render(){
 
   h += `<div class="kpis">` +
     retTile("Since day 1", m.unrealized_pct!=null ? m.unrealized_pct : null, "vs cost", false) +
-    retTile("vs 1 year", rv.y1, rv.y1src && rv.y1src!=="stored" ? "vs "+rv.y1src : "", rv.y1flows) +
+    retTile("vs last week", rv.w1, rv.w1src && rv.w1src!=="stored" ? "vs "+rv.w1src : "", rv.w1flows) +
     retTile("vs yesterday", rv.d1, rv.d1src && rv.d1src!=="stored" ? "vs "+rv.d1src : "", rv.d1flows) +
   `</div>`;
 
