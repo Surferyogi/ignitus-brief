@@ -1,4 +1,4 @@
-# Ignitus Brief — PWA (v2026:08:03-05:22)
+# Ignitus Brief — PWA (v2026:08:05-10:19)
 
 Read-only viewer for the Ignitus portfolio briefs. The briefs are produced by Claude scheduled
 tasks which INSERT one row per run into `public.brief_log` in the Ignitus Supabase project.
@@ -122,10 +122,13 @@ when it is absent (every brief written before 2026-07-30) the app prints why it 
 than back-filling anything.
 
 - **Focus 10** — a ranked attention list. Each card expands to an ascending reference-level ladder
-  (cost basis, 52-week and 6-month extremes, SMA50, SMA200, and the algebraically-solved derisk-cap
-  breach price) with the last price in its true slot, so above and below are visible rather than
+  (cost basis, 52-week and 6-month extremes, the 50-day and 200-day average prices, and the
+  algebraically-solved derisk-cap breach price) with the last price in its true slot, so above and below are visible rather than
   asserted. The right column is each level's distance from that last price. These are arithmetic
-  reference levels, not targets and not recommendations.
+  reference levels, not targets and not recommendations. From daily v8.13 / weekly v2.5 the
+  producers write tags in words (`REPORTS TODAY`, `NEAR SIZE CAP`, `52-WEEK LOW`,
+  `BELOW 200-DAY AVERAGE`); the app highlights both those and the older coded forms
+  (`EARN d0`, `CAP NEAR`, `52W LOW`, `BELOW SMA200`), so briefs written before that still render.
 - **Exposure map** — two squarified treemaps of every holding, sized by SGD value, grouped by market
   and by sector, coloured on the move stated in `heat_basis.label`. Red is down, blue is up, with a
   neutral gray midpoint (CVD-safe — deliberately not red/green). Tap any tile for its figures. Any
@@ -135,7 +138,7 @@ than back-filling anything.
 ## Files
 - `index.html` — the whole app (fetch, render, treemaps, offline data fallback)
 - `manifest.webmanifest` — install metadata
-- `sw.js` — service worker (caches the app shell for offline; `SHELL_CACHE = ignitus-shell-v13`)
+- `sw.js` — service worker (caches the app shell for offline; `SHELL_CACHE = ignitus-shell-v14`)
 - `icon-192.png`, `icon-512.png`
 
 Do **not** deploy anything else from this folder. `fixture.json`, `fixture_live.json` and the
@@ -149,7 +152,7 @@ Manual, no build step:
 3. **GitHub Pages** — push the 5 files to a repo → Settings → Pages → deploy from branch.
 
 **After redeploying, the shell cache name must change or phones keep the old app.** It is already
-bumped to `ignitus-shell-v13` in `sw.js`; a redeploy is what makes that take effect. If the phone
+bumped to `ignitus-shell-v14` in `sw.js`; a redeploy is what makes that take effect. If the phone
 still shows the old version, close all tabs of the app and reopen, or uninstall and reinstall.
 
 ## Install on your phone

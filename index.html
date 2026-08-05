@@ -192,7 +192,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:03-05:22
+  v2026:08:05-10:19
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -643,8 +643,8 @@ function focusBlock(m){
     const col = mv==null ? "var(--tx3)" : (mv>=0?"var(--good)":"var(--bad)");
     const chips = (r.tags||[]).map(t=>{
       const u = String(t).toUpperCase();
-      const cls = /EARN D0|52W LOW|CAP NEAR|WEAK/.test(u) ? "chip hot"
-                : /MIXED|BELOW SMA200|52W HIGH/.test(u) ? "chip warn" : "chip";
+      const cls = /EARN D0|REPORTS TODAY|52W LOW|52-WEEK LOW|CAP NEAR|NEAR SIZE CAP|WEAK/.test(u) ? "chip hot"
+                : /MIXED|BELOW SMA200|BELOW 200-DAY AVERAGE|52W HIGH|52-WEEK HIGH/.test(u) ? "chip warn" : "chip";
       return `<span class="${cls}">${esc(t)}</span>`;
     }).join("");
     // ascending ladder with the live price slotted at its true position, so "above" and
