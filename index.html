@@ -192,13 +192,13 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:05-10:19
+  v2026:08:18-12:05
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
 const KEY = "sb_publishable_y-wyxLIPM0eiQOezFH6UYQ_WEJzxLGz";
 const API = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,run_ts,brief_md,metrics,source&order=run_date.desc&limit=30";
-const API_HIST = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,book:metrics->book_sgd,cost:metrics->cost_sgd&order=run_date.desc&limit=400";
+const API_HIST = SUPABASE_URL + "/rest/v1/brief_log?select=run_date,book:metrics->book_sgd,cost:metrics->cost_sgd,flow:metrics->flow_sgd,fxbook:metrics->fx_book_effect_sgd,wk:metrics->week&order=run_date.desc&limit=400";
 const DATA_CACHE = "ignitus-data-v1";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOWS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -382,15 +382,54 @@ function meter(label, d){
 
 /* Δ returns vs a prior brief_log row. Sources: light history query; falls back to the
    values the scheduled run stored in metrics. Never approximated from anything else. */
+// Sum money paid in / taken out over (fromDate, toDate] — EVERY row in between,
+// not just the endpoint: the 2026-08-10→08-17 week carried two separate deposits
+// (S$58,220 and S$6,053), so an endpoint-only reading understates badly.
+// A weekly row's own week.true_flow_sgd wins where present: it is computed at
+// constant prior FX and differs from the summed dailies (S$1,860 over that week).
+function flowBetween(rows, fromDate, toDate){
+  // The weekly review stores ONE flow figure covering its own Mon-to-Mon window
+  // (week.true_flow_sgd). Applying that to any other window is wrong by a whole
+  // week, so it is used ONLY when the window being measured IS that window --
+  // proved by matching the from-row's book against week.prev_book_sgd, not
+  // assumed from the dates. (CK 2026-08-18)
+  const here = rows.find(r => r.run_date === toDate);
+  if(here && here.wk && here.wk.true_flow_sgd != null && here.wk.prev_book_sgd != null){
+    const from = rows.find(r => r.run_date === fromDate);
+    if(from && from.book != null && Math.abs(from.book - here.wk.prev_book_sgd) < 1){
+      return { flow: +here.wk.true_flow_sgd || 0,
+               fx:   +(here.wk.fx_book_effect_sgd || 0),
+               unk:  [] };
+    }
+  }
+  // Otherwise sum the per-day figures. A row that carries no flow_sgd at all --
+  // every weekly row, and every daily row written before v8.20 -- contributes
+  // NOTHING and is named instead. Never derive or infer the missing day.
+  let flow = 0, fx = 0; const unk = [];
+  for(const r of rows){
+    if(r.run_date > fromDate && r.run_date <= toDate){
+      if(r.flow == null) unk.push(r.run_date);
+      else flow += +r.flow || 0;
+      fx += +(r.fxbook || 0);
+    }
+  }
+  return { flow, fx, unk };
+}
 function retvs(selDate, m){
   const rows = hist.filter(r => r.book != null).sort((a,b)=> a.run_date < b.run_date ? -1 : 1);
   const here = rows.find(r => r.run_date === selDate);
-  const out = {d1:null, d1src:null, d1flows:false, w1:null, w1src:null, w1flows:false};
+  const out = {d1:null, d1raw:null, d1x:null, d1src:null, d1flows:false, d1flow:0, d1fx:0, d1unk:[],
+               w1:null, w1raw:null, w1x:null, w1src:null, w1flows:false, w1flow:0, w1fx:0, w1unk:[]};
   if(here){
     const prev = [...rows].reverse().find(r => r.run_date < selDate);
     if(prev){
-      out.d1 = (here.book/prev.book - 1)*100; out.d1src = prev.run_date;
-      out.d1flows = here.cost!=null && prev.cost!=null && Math.abs(here.cost/prev.cost - 1) > 0.001;
+      const f = flowBetween(rows, prev.run_date, selDate);
+      out.d1raw = (here.book/prev.book - 1)*100;
+      out.d1    = ((here.book - f.flow)/prev.book - 1)*100;
+      out.d1x   = ((here.book - f.flow - f.fx)/prev.book - 1)*100;
+      out.d1src = prev.run_date; out.d1flow = f.flow; out.d1fx = f.fx;
+      out.d1unk = f.unk || [];
+      out.d1flows = Math.abs(f.flow) >= 1;
     }
     // Week-ago comparison. The 365-day version this replaced could never resolve —
     // brief_log only begins mid-2026, so the tile read "no history yet" every day.
@@ -404,21 +443,74 @@ function retvs(selDate, m){
       if(r.run_date < selDate && gap < bestGap){ best=r; bestGap=gap; }
     }
     if(best){
-      out.w1 = (here.book/best.book - 1)*100; out.w1src = best.run_date;
-      out.w1flows = here.cost!=null && best.cost!=null && Math.abs(here.cost/best.cost - 1) > 0.001;
+      const f = flowBetween(rows, best.run_date, selDate);
+      out.w1raw = (here.book/best.book - 1)*100;
+      out.w1    = ((here.book - f.flow)/best.book - 1)*100;
+      out.w1x   = ((here.book - f.flow - f.fx)/best.book - 1)*100;
+      out.w1src = best.run_date; out.w1flow = f.flow; out.w1fx = f.fx;
+      out.w1unk = f.unk || [];
+      out.w1flows = Math.abs(f.flow) >= 1;
     }
   }
-  if(out.d1==null && m.ret_1d_pct!=null){ out.d1 = m.ret_1d_pct; out.d1src = "stored"; }
+  // ─── PRECEDENCE ───────────────────────────────────────────────────────────
+  // The scheduled run holds the trade ledger; this viewer holds only book
+  // snapshots, so where the run stored its OWN ex-flow figure that figure wins
+  // and the derived one is discarded. Measured 2026-08-18: derived 7-day
+  // -0.06% vs stored -0.12%, the whole gap being the S$1.9k that moved on the
+  // Monday the weekly ran -- a day whose flow no row records. Deriving is the
+  // fallback for rows written before v8.20, never a second opinion. The run
+  // anchors Δ1d on the most recent prior row and Δ7d on the row nearest
+  // RUN_DATE-7 ±3 d, which is exactly what retvs() resolved, so the "vs <date>"
+  // label stays true for a stored figure. (CK 2026-08-18)
+  if(m.ret_1d_exflow_pct!=null){
+    out.d1 = m.ret_1d_exflow_pct;
+    out.d1x = m.ret_1d_exflow_exfx_pct!=null ? m.ret_1d_exflow_exfx_pct : null;
+    if(m.flow_sgd!=null){ out.d1flow = +m.flow_sgd; out.d1flows = Math.abs(out.d1flow)>=1; }
+    else if(out.d1unk.length){ out.d1flow = null; }
+    out.d1unk = [];
+    if(out.d1src==null) out.d1src = "stored";
+  } else if(out.d1==null && m.ret_1d_pct!=null){ out.d1 = m.ret_1d_pct; out.d1src = "stored"; out.d1flows = false; out.d1unk = []; }
   // Only the weekly review stores its own week figure. ret_1y_pct is NOT a valid
   // fallback here — it answers a different question and would be mislabelled.
-  if(out.w1==null && m.week && m.week.delta_pct!=null){ out.w1 = m.week.delta_pct; out.w1src = "stored"; }
+  if(m.ret_7d_exflow_pct!=null){
+    out.w1 = m.ret_7d_exflow_pct;
+    out.w1x = m.ret_7d_exflow_exfx_pct!=null ? m.ret_7d_exflow_exfx_pct : null;
+    // No row stores a 7-day flow TOTAL. If the derived sum was complete it is
+    // still the right number to name; if a day was missing, drop the amount and
+    // say only that flows are out -- never print a total known to be short.
+    if(out.w1unk.length){ out.w1flow = null; out.w1flows = true; }
+    out.w1unk = [];
+    if(out.w1src==null) out.w1src = "stored";
+  } else if(m.week && m.week.exflow_pct!=null){
+    out.w1 = m.week.exflow_pct;
+    out.w1x = m.week.exflow_exfx_pct!=null ? m.week.exflow_exfx_pct : null;
+    if(m.week.true_flow_sgd!=null){ out.w1flow = +m.week.true_flow_sgd; out.w1flows = Math.abs(out.w1flow)>=1; }
+    out.w1unk = [];
+    if(out.w1src==null) out.w1src = "stored";
+  } else if(out.w1==null && m.week && m.week.delta_pct!=null){ out.w1 = m.week.delta_pct; out.w1src = "stored"; out.w1flows = false; out.w1unk = []; }
   return out;
 }
-function retTile(label, v, sub, flows){
+function retTile(label, v, sub, flows, exfx, flowAmt, unk){
   const col = v==null ? "var(--tx3)" : (v>=0 ? "var(--good)" : "var(--bad)");
-  const txt = v==null ? "n/a" : (v>=0?"+":"") + v.toFixed(v!=null && Math.abs(v)>=10 ? 1 : 2) + "%";
+  const pc  = n => (n>=0?"+":"") + n.toFixed(Math.abs(n)>=10 ? 1 : 2) + "%";
+  const txt = v==null ? "n/a" : pc(v);
+  // The headline EXCLUDES money paid in or taken out and KEEPS currency movement —
+  // an FX gain on a foreign holding is real money in SGD (CK 2026-08-17). The
+  // without-FX figure sits underneath so the currency contribution stays visible.
+  let note = "";
+  if(v!=null){
+    note = esc(sub||"");
+    // The SGD amounts are spelled out in the "What moved the book" block below,
+    // so the tile says only WHAT was excluded, never repeating the figure.
+    if(flows){
+      note += " · money in/out excluded";
+    }
+    if(exfx!=null && Math.abs(exfx - v) >= 0.005) note += " · " + pc(exfx) + " excl. FX";
+    // Never let a partly-known deduction read as a complete one.
+    if(unk && unk.length) note += " · flow not available for " + unk.map(d=>d.slice(5)).join(", ");
+  }
   return `<div class="kpi"><div class="l">${label}</div><div class="v" style="color:${col}">${txt}</div>
-    <div class="s">${v==null ? "no history yet" : esc(sub||"") + (flows ? " · incl. flows" : "")}</div></div>`;
+    <div class="s">${v==null ? "no history yet" : note}</div></div>`;
 }
 /* ══════════════════════════════════════════════════════════════════════════
    FOCUS 10 + EXPOSURE HEATMAPS
@@ -632,6 +724,102 @@ function expoBlock(m){
   </div>`;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   WHAT MOVED THE BOOK — money in/out and currency shown SEPARATELY (CK 2026-08-18)
+   The three tiles answer "how much"; this answers "of what". Money paid in is
+   not a return and is excluded from the headline, but it is real and must be
+   visible as its own figure rather than implied by a shrunken percentage.
+   Currency is kept in the headline — an FX gain on a foreign holding is real
+   money to an SGD holder — so it is listed as its own line too.
+   EVERY figure here is a stored value or exact arithmetic between stored
+   values. A component the run never wrote prints as not available; nothing on
+   this block is estimated, apportioned or inferred.
+   ══════════════════════════════════════════════════════════════════════════ */
+function bridgeBlock(m, selDate){
+  const rows = (hist||[]).filter(r => r.book != null).sort((a,b)=> a.run_date < b.run_date ? -1 : 1);
+  const here = rows.find(r => r.run_date === selDate);
+  const cur  = m.book_sgd != null ? +m.book_sgd : (here && here.book != null ? +here.book : null);
+  const w    = m.week;
+  let label, fromDate = null, prevBook = null, flow = null, fx = null, market = null;
+  let pRaw = null, pExFlow = null, pExFx = null, note = "";
+
+  if(w && w.true_flow_sgd != null){
+    // Weekly review: it computed and stored every component of its own window.
+    flow   = +w.true_flow_sgd;
+    fx     = w.fx_book_effect_sgd != null ? +w.fx_book_effect_sgd : null;
+    market = w.market_only_sgd    != null ? +w.market_only_sgd    : null;
+    prevBook = w.prev_book_sgd    != null ? +w.prev_book_sgd      : null;
+    if(prevBook == null && cur != null && flow != null && fx != null && market != null)
+      prevBook = cur - (flow + fx + market);          // exact, from the row's own parts
+    const anchor = prevBook == null ? null
+      : rows.find(r => r.book != null && Math.abs(+r.book - prevBook) < 1 && r.run_date < selDate);
+    fromDate = anchor ? anchor.run_date : null;
+    label    = "over the week";
+    pRaw     = w.delta_pct   != null ? +w.delta_pct   : null;
+    pExFlow  = w.exflow_pct  != null ? +w.exflow_pct  : null;
+    pExFx    = w.exflow_exfx_pct != null ? +w.exflow_exfx_pct : null;
+  } else if(m.flow_sgd != null || m.fx_book_effect_sgd != null){
+    const prev = [...rows].reverse().find(r => r.run_date < selDate);
+    prevBook = prev && prev.book != null ? +prev.book : null;
+    fromDate = prev ? prev.run_date : null;
+    flow = m.flow_sgd != null ? +m.flow_sgd : null;
+    fx   = m.fx_book_effect_sgd != null ? +m.fx_book_effect_sgd : null;
+    label   = "since the previous brief";
+    pRaw    = m.ret_1d_pct != null ? +m.ret_1d_pct : null;
+    pExFlow = m.ret_1d_exflow_pct != null ? +m.ret_1d_exflow_pct : null;
+    pExFx   = m.ret_1d_exflow_exfx_pct != null ? +m.ret_1d_exflow_exfx_pct : null;
+  } else {
+    return "";                                        // nothing stored — say nothing
+  }
+
+  const delta = (cur != null && prevBook != null) ? cur - prevBook : null;
+  if(market == null && delta != null && flow != null && fx != null) market = delta - flow - fx;
+  // Derive a percentage ONLY when the run stored none and every input is present.
+  if(pRaw    == null && delta != null && prevBook) pRaw    = delta / prevBook * 100;
+  if(pExFlow == null && delta != null && flow != null && prevBook) pExFlow = (delta - flow) / prevBook * 100;
+  if(pExFx   == null && delta != null && flow != null && fx != null && prevBook) pExFx = (delta - flow - fx) / prevBook * 100;
+
+  const amt = n => (n == null) ? null : (n >= 0 ? "+" : "−") + "SGD " + Math.round(Math.abs(n)).toLocaleString("en-SG");
+  const pc  = n => (n == null) ? "not available" : (n >= 0 ? "+" : "−") + Math.abs(n).toFixed(2) + "%";
+  const row = (lb, v, tail, cls) => {
+    const val = amt(v);
+    return val == null
+      ? `<div class="lr na"><span class="lb">${esc(lb)}</span><span class="lp">not available</span><span class="ld"></span></div>`
+      : `<div class="lr ${cls||""}"><span class="lb">${esc(lb)}</span><span class="lp">${val}</span>`+
+        `<span class="ld">${esc(tail||"")}</span></div>`;
+  };
+
+  let money = row("Money in / out", flow, "excluded");
+  let curr, mkt;
+  if(fx == null){
+    curr = `<div class="lr na"><span class="lb">Currency (FX)</span><span class="lp">not available</span><span class="ld"></span></div>`;
+    // Without a currency figure the remainder cannot be split; report it as one line.
+    mkt  = row("Market move and currency", (delta != null && flow != null) ? delta - flow : null, "kept");
+    note = "This run stored no currency figure, so the market move and the currency effect cannot be separated for this window.";
+  } else {
+    curr = row("Currency (FX)", fx, "kept");
+    mkt  = row("Market move", market, "kept");
+  }
+
+  const pct = (lb, v, cls) =>
+    `<div class="lr ${cls||""}"><span class="lb">${esc(lb)}</span>`+
+    `<span class="lp" style="color:${v==null?"var(--tx3)":(v>=0?"var(--good)":"var(--bad)")}">${pc(v)}</span>`+
+    `<span class="ld"></span></div>`;
+
+  return `<div class="sec"><div class="sec-h">
+      <span class="dot" style="background:var(--accent)"></span><h2>What moved the book</h2>
+      <span class="sub">${esc(label)}${fromDate ? ` · <span style="white-space:nowrap">vs ${fromDate}</span>` : ""}</span></div>
+    <div class="lad">${money}${curr}${mkt}${row("Total book change", delta, "", "now")}</div>
+    <div class="lad">
+      ${pct("Excluding money in / out", pExFlow, "now")}
+      ${pct("Excluding money in / out and currency", pExFx)}
+      ${pct("Including everything", pRaw)}
+    </div>
+    <div class="wl" style="font-size:11.5px;color:var(--tx3)">The first percentage is the headline on the tiles above:
+    money paid in or taken out is not a return, so it is out; a currency gain on a foreign holding is real money in SGD,
+    so it stays in. ${esc(note)}</div></div>`;
+}
+
 function focusBlock(m){
   const f = m.focus10;
   if(!Array.isArray(f) || !f.length) return `<div class="sec focus"><div class="sec-h">
@@ -646,7 +834,18 @@ function focusBlock(m){
       const cls = /EARN D0|REPORTS TODAY|52W LOW|52-WEEK LOW|CAP NEAR|NEAR SIZE CAP|WEAK/.test(u) ? "chip hot"
                 : /MIXED|BELOW SMA200|BELOW 200-DAY AVERAGE|52W HIGH|52-WEEK HIGH/.test(u) ? "chip warn" : "chip";
       return `<span class="${cls}">${esc(t)}</span>`;
-    }).join("");
+    }).join("")
+    // A watch entry (insider dealing, senate purchases) is rendered inside the
+    // card, which is closed for every name but the first. On 2026-08-18 only 3 of
+    // the 10 names carried one and the open card was not among them, so the whole
+    // feature was invisible. This chip names the kind on the CLOSED summary; the
+    // figure and its source stay inside, unchanged. (CK 2026-08-18)
+    + (r.watch||[]).map(w => {
+        const k = (w && typeof w === "object" && w.k != null) ? String(w.k) : "";
+        if(!/insider|senate/i.test(k)) return "";   // not a chip-worthy watch item
+        const lab = k.split(" (")[0].trim();
+        return lab ? `<span class="chip warn">${esc(lab.toUpperCase())}</span>` : "";
+      }).join("");
     // ascending ladder with the live price slotted at its true position, so "above" and
     // "below" are visible rather than asserted. Rungs with no price fall to the bottom.
     const px2 = v => Number(v).toLocaleString("en-SG",{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -709,9 +908,11 @@ function render(){
 
   h += `<div class="kpis">` +
     retTile("Since day 1", m.unrealized_pct!=null ? m.unrealized_pct : null, "vs cost", false) +
-    retTile("vs last week", rv.w1, rv.w1src && rv.w1src!=="stored" ? "vs "+rv.w1src : "", rv.w1flows) +
-    retTile("vs yesterday", rv.d1, rv.d1src && rv.d1src!=="stored" ? "vs "+rv.d1src : "", rv.d1flows) +
+    retTile("vs last week", rv.w1, rv.w1src && rv.w1src!=="stored" ? "vs "+rv.w1src : "", rv.w1flows, rv.w1x, rv.w1flow, rv.w1unk) +
+    retTile("vs yesterday", rv.d1, rv.d1src && rv.d1src!=="stored" ? "vs "+rv.d1src : "", rv.d1flows, rv.d1x, rv.d1flow, rv.d1unk) +
   `</div>`;
+
+  h += bridgeBlock(m, b.run_date);
 
   h += `<div class="kpis two">
     <div class="kpi"><div class="l">Act today</div><div class="v" style="color:${acts.length? 'var(--bad)':'var(--good)'}">${acts.length}</div>
