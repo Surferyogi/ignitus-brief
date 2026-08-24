@@ -108,6 +108,10 @@ footer{text-align:center;font-size:11px;color:var(--tx3);margin-top:18px;line-he
 
 /* ── FOCUS 10 ── */
 .sec.focus .itm::before{background:var(--accent)}
+details.fold>summary{list-style:none;cursor:pointer;font-size:13px;color:var(--accent);font-weight:650;
+  padding:8px 0 2px;user-select:none}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold[open]>summary{color:var(--tx3)}
 .f10{border-top:1px solid var(--line);padding:11px 0 3px}
 .f10:first-of-type{border-top:none}
 .f10 summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -192,7 +196,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:18-12:05
+  v2026:08:20-14:05
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -343,22 +347,35 @@ function fmtText(s){
   }
   return h;
 }
-function renderSections(md, skip){
+function renderSections(md, skip, only){
   const secs = parseBrief(md);
   // a 💬 takeaway alone is enough to render a section — the early watchdog runs wrote the
   // whole section on the heading line, so those rows have plain text and nothing else
   const body = secs.filter(s => s.key !== "header" && (s.items.length || s.paras.length || s.plain)
-                               && !(skip && skip.has(s.key)));
+                               && !(skip && skip.has(s.key))
+                               && (!only || only.has(s.key)));
   if(!body.length) return null; // unknown format → caller falls back to raw
   let h = "";
   // header lines intentionally not rendered (date + return tiles cover them; book value hidden by CK request)
+  // CK 2026-08-20: the long narrative sections open collapsed — the 💬 Key Highlights
+  // carry the point and the detail is one tap away. Only sections that HAVE a takeaway
+  // collapse; one without a 💬 would collapse to nothing and hide itself.
+  // Measured on the live 2026-08-25 daily: ACT 595 chars · WATCH 1253 · OPPS 1270 ·
+  // FYI 467 · DERISK 1050 · HEALTH 264 · BACKDROP 1003 · GAPS 1005. The four long ones
+  // fold. \U0001f534 ACT never folds — it is the whole point of the brief — and the two
+  // short sections stay open because a tap to reveal two lines is worse than showing them.
+  const COLLAPSE = new Set(["review", "bench", "watch", "opps", "derisk", "macro", "gaps"]);
   for(const s of body){
+    const detail = s.paras.length + s.items.length;
+    const fold = COLLAPSE.has(s.key) && s.plain && detail > 0;
     h += `<div class="sec ${s.key}"><div class="sec-h">
       <span class="dot" style="background:${s.color}"></span><h2>${esc(s.title)}</h2>
       ${s.sub ? `<span class="sub">${esc(s.sub)}</span>` : ""}</div>`;
     if(s.plain) h += `<div class="plain"><span class="pl">Key Highlights</span>${esc(s.plain)}</div>`;
+    if(fold) h += `<details class="fold"><summary>Show the detail (${detail} line${detail===1?"":"s"}) ▾</summary>`;
     for(const p of s.paras) h += `<div class="para">${fmtText(p)}</div>`;
     for(const it of s.items) h += `<div class="itm">${fmtText(it)}</div>`;
+    if(fold) h += `</details>`;
     if(s.key === "act" && s.items.length)
       h += `<div class="disclaimer">Triggers + evidence only — never a trade recommendation.</div>`;
     if(s.key === "opps" && s.items.length)
@@ -820,6 +837,148 @@ function bridgeBlock(m, selDate){
     so it stays in. ${esc(note)}</div></div>`;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   🌏 SLEEVES · 🔝 MOVERS · 📅 WEEK AHEAD — rendered from the stored metrics
+   rather than from the prose, so every line is a figure the run itself computed.
+   A key the run did not write means the block simply does not appear; nothing
+   here is derived, back-filled or estimated. (CK 2026-08-20)
+   ══════════════════════════════════════════════════════════════════════════ */
+const pc2 = n => n==null ? "n/a" : (n>=0?"+":"\u2212") + Math.abs(Number(n)).toFixed(2) + "%";
+// sgd0() is already defined above (S$ prefix) — reuse it rather than shadowing.
+
+// The 💬 takeaway lives in the prose, the figures live in metrics. When a block
+// renders from metrics we still want the takeaway, so pull just that one line out.
+function plainOf(md, key){
+  try{ const s = parseBrief(md).find(x => x.key === key); return s && s.plain ? s.plain : ""; }
+  catch(e){ return ""; }
+}
+function benchBlock(m){
+  const sl = m.sleeves;
+  if(!sl || typeof sl !== "object" || !Object.keys(sl).length) return "";
+  const rows = Object.entries(sl).map(([name, d]) => ({name, ...d}))
+    .sort((a,b) => (Number(a.spread_pp)||0) - (Number(b.spread_pp)||0));
+  const behind = rows.filter(r => Number(r.spread_pp) < 0).length;
+  const line = r => {
+    const sp = r.spread_pp==null ? null : Number(r.spread_pp);
+    const col = sp==null ? "var(--tx3)" : (sp>=0 ? "var(--good)" : "var(--bad)");
+    const tail = [
+      r.top ? "best " + esc(String(r.top)) : "",
+      r.dn  ? "worst " + esc(String(r.dn)) : ""
+    ].filter(Boolean).join(" \u00b7 ");
+    return `<details class="f10"><summary>
+        <span class="tk">${esc(r.name)}</span>
+        <span class="wt">${r.ret_pct!=null ? pc2(r.ret_pct) : "n/a"} vs ${esc(String(r.bench_pct ?? "n/a").replace(/-/g,"\u2212"))}%</span>
+        <span class="mv" style="color:${col}">${sp==null ? "n/a" : (sp>=0?"+":"\u2212") + Math.abs(sp).toFixed(2) + " pp"}</span>
+      </summary>
+      <div class="wl">\u2022 sleeve ${r.ret_pct!=null ? pc2(r.ret_pct) : "not available"}, benchmark ${esc(String(r.bench_sym ?? "n/a"))} ${esc(String(r.bench_pct ?? "n/a").replace(/-/g,"\u2212"))}%</div>
+      ${tail ? `<div class="wl">\u2022 ${tail}</div>` : ""}
+    </details>`;
+  };
+  return `<div class="sec bench"><div class="sec-h">
+      <span class="dot" style="background:var(--accent)"></span><h2>Sleeves vs benchmarks</h2>
+      <span class="sub">${behind} of ${rows.length} behind \u00b7 worst first</span></div>
+    ${rows.map(line).join("")}
+    <div class="disclaimer">Sleeve returns are in SGD; index returns are in local currency \u2014 the gap includes currency.
+    Tap a sleeve for its benchmark and its best and worst name.</div></div>`;
+}
+
+function moversBlock(m){
+  const mv = m.movers;
+  if(!mv || typeof mv !== "object") return "";
+  const grp = (title, arr, withSgd) => {
+    if(!Array.isArray(arr) || !arr.length) return "";
+    const rows = arr.map(x => {
+      const p = x.pct==null ? null : Number(x.pct);
+      const col = p==null ? "var(--tx3)" : (p>=0 ? "var(--good)" : "var(--bad)");
+      const extra = withSgd
+        ? (x.sgd!=null ? sgd0(x.sgd) : "")
+        : (x.from ? "since " + esc(String(x.from)) : "");
+      return `<div class="lr"><span class="lb"><b class="tk">${esc(String(x.ticker||"?"))}</b>${extra ? " \u00b7 " + extra : ""}</span>`+
+             `<span class="lp" style="color:${col}">${p==null ? "n/a" : (p>=0?"+":"\u2212") + Math.abs(p).toFixed(1) + "%"}</span><span class="ld"></span></div>`;
+    }).join("");
+    return `<div class="wl" style="font-size:12px;color:var(--tx3);padding-top:8px">${esc(title)}</div><div class="lad">${rows}</div>`;
+  };
+  const body = grp("Biggest risers, 7 days", mv.d7_up, true)
+             + grp("Biggest fallers, 7 days", mv.d7_dn, true)
+             + grp("Biggest risers, 1 year", mv.y1_up, false)
+             + grp("Biggest fallers, 1 year", mv.y1_dn, false);
+  if(!body) return "";
+  return `<div class="sec movers"><div class="sec-h">
+      <span class="dot" style="background:var(--good)"></span><h2>Top movers</h2>
+      <span class="sub">7 days, then 1 year</span></div>${body}
+    <div class="disclaimer">The 7-day rows carry the SGD contribution to the book; the 1-year rows carry the window they are
+    measured from. Percentages are price moves, not returns after money in or out.</div></div>`;
+}
+
+function aheadBlock(m){
+  const up = m.upcoming;
+  if(!up || typeof up !== "object") return "";
+  const dated = (title, arr, note) => {
+    if(Array.isArray(arr) && arr.length){
+      const rows = arr.map(x => {
+        const d = x.date ? esc(String(x.date)) : "date not available";
+        const ev = esc(String(x.event || x.ticker || ""));
+        const u = x.url ? ` <a href="${esc(String(x.url))}" target="_blank" rel="noopener" style="color:var(--accent)">source</a>` : "";
+        return `<div class="wl">\u2022 <b>${d}</b> \u2014 ${ev}${u}</div>`;
+      }).join("");
+      return `<div class="wl" style="font-size:12px;color:var(--tx3);padding-top:8px">${esc(title)}</div>${rows}`;
+    }
+    if(note) return `<div class="wl" style="font-size:12px;color:var(--tx3);padding-top:8px">${esc(title)}</div>`+
+                    `<div class="wl" style="color:var(--tx3)">\u2022 ${esc(String(note))}</div>`;
+    return "";
+  };
+  const body = dated("Earnings", up.earnings, up.earnings_note)
+             + dated("Dividends", up.dividends, up.dividends_note)
+             + dated("Macro", up.macro, up.macro_note);
+  if(!body) return "";
+  return `<div class="sec ahead"><div class="sec-h">
+      <span class="dot" style="background:var(--warn)"></span><h2>Week ahead</h2>
+      <span class="sub">dated, most imminent first</span></div>${body}
+    <div class="disclaimer">Every macro date is read from an official source during the run and carries its link.
+    A missing item says why it is missing rather than being dropped.</div></div>`;
+}
+
+// The daily and the weekly BOTH use S1-S6 and they mean DIFFERENT things, so the map is
+// gated on which producer wrote the row. A code with no entry prints bare rather than
+// being given a name it does not have.
+const SCREENS_DAILY = {
+  S1:"near its 52-week low", S2:"heavily sold", S3:"insider buying cluster",
+  S4:"dividend raised", S5:"excellent quality at a modest implied growth rate",
+  S6:"price trend turned up"
+};
+const SCREENS_WEEKLY = {
+  S1:"near its 52-week low", S2:"heavily sold", S3:"broke below its long-term average",
+  S4:"dividend yield well above its own average", S5:"moving-average crossover",
+  S6:"deep drawdown, quality unchanged"
+};
+function oppsBlock(m, md, source){
+  const o = m.opportunities;
+  if(!Array.isArray(o) || !o.length) return "";
+  const map = /weekly/i.test(String(source||"")) ? SCREENS_WEEKLY : SCREENS_DAILY;
+  const plain = plainOf(md, "opps");
+  const card = r => {
+    const codes = Array.isArray(r.signals) ? r.signals : [];
+    const chips = codes.map(c => {
+      const nm = map[String(c).toUpperCase()];
+      return `<span class="chip">${esc(String(c))}${nm ? " " + esc(nm) : ""}</span>`;
+    }).join("");
+    return `<details class="f10"><summary>
+        <span class="tk">${esc(String(r.ticker||"?"))}</span>
+        ${chips ? `<span class="chips">${chips}</span>` : ""}
+      </summary>
+      ${r.evidence ? `<div class="wl">\u2022 <b>What fired</b> \u2014 ${fmtText(String(r.evidence))}</div>` : ""}
+      ${r.counterpoint ? `<div class="cp">${fmtText(String(r.counterpoint))}</div>` : ""}
+    </details>`;
+  };
+  return `<div class="sec opps"><div class="sec-h">
+      <span class="dot" style="background:var(--good)"></span><h2>Opportunities &amp; signals</h2>
+      <span class="sub">${o.length} screen${o.length===1?"":"s"} met</span></div>
+    ${plain ? `<div class="plain"><span class="pl">Key Highlights</span>${esc(plain)}</div>` : ""}
+    ${o.map(card).join("")}
+    <div class="disclaimer">A screen firing is a criterion met, never a recommendation. Each name carries the counterpoint
+    that argues against it. The decision is yours.</div></div>`;
+}
+
 function focusBlock(m){
   const f = m.focus10;
   if(!Array.isArray(f) || !f.length) return `<div class="sec focus"><div class="sec-h">
@@ -889,10 +1048,11 @@ function focusBlock(m){
   };
   return `<div class="sec focus"><div class="sec-h">
       <span class="dot" style="background:var(--accent)"></span><h2>Focus 10</h2>
-      <span class="sub">ranked by attention</span></div>
+      <span class="sub">biggest SGD moves first</span></div>
     ${f.map(card).join("")}
-    <div class="disclaimer">A ranking of where the money moved and what is pending — not a to-do list and not
-    a recommendation. Every level is arithmetic; the decision is yours.</div></div>`;
+    <div class="disclaimer">Ranked by the <b>size of the move in SGD</b> — position size × price move — so a small percentage on a
+    big holding outranks a big percentage on a small one. Two names join regardless of how far they moved: any position at or above
+    9% of the book, and any reporting earnings today. Where to look, not what to do — that is Act today.</div></div>`;
 }
 
 function render(){
@@ -921,27 +1081,57 @@ function render(){
       <div class="s">of ${Object.keys(dk).length||"–"} caps</div></div>
   </div>`;
 
-  if(Object.keys(dk).length){
-    h += `<div class="sec derisk"><div class="sec-h"><span class="dot" style="background:var(--accent)"></span><h2>Guardrails</h2></div>` +
-      meter("NVDA single position", dk.single_nvda) +
-      meter("Semi cluster", dk.semi_cluster) +
-      meter("Tech sector", dk.sector_tech) +
-      meter("Top-10 concentration", dk.top10) +
-      meter("US market", dk.market_us) + `</div>`;
+  // meter() returns "" for a cap with no percentage, so build the bars FIRST and only
+  // then decide whether the section exists — otherwise a run that stored the derisk keys
+  // without figures prints a Guardrails heading with nothing under it (seen 2026-08-25).
+  const bars = meter("NVDA single position", dk.single_nvda)
+             + meter("Semi cluster", dk.semi_cluster)
+             + meter("Tech sector", dk.sector_tech)
+             + meter("Top-10 concentration", dk.top10)
+             + meter("US market", dk.market_us);
+  if(bars){
+    h += `<div class="sec derisk"><div class="sec-h"><span class="dot" style="background:var(--accent)"></span><h2>Guardrails</h2></div>`
+       + bars + `</div>`;
   }
 
-  h += focusBlock(m);
-  h += expoBlock(m);
 
   h += `<div id="viewtoggle">
     <button class="${view==='read'?'sel':''}" onclick="view='read';render()">Formatted</button>
     <button class="${view==='raw'?'sel':''}" onclick="view='raw';render()">Raw</button>
   </div>`;
 
-  const skip = new Set();
-  if(Array.isArray(m.focus10) && m.focus10.length) skip.add("focus");
-  if(posRows(m)) skip.add("expo");
-  const formatted = view === "read" ? renderSections(b.brief_md, skip) : null;
+  // ─── ORDERED WALK ────────────────────────────────────────────────────────
+  // The run decided the order; the viewer must not reshuffle it. Walk the sections
+  // the brief actually emitted and, for each, prefer its structured block over its
+  // prose. A structured block whose section the brief never wrote is appended after,
+  // so nothing computed can go unseen.
+  const BUILT = {
+    bench:  () => benchBlock(m),
+    movers: () => moversBlock(m),
+    ahead:  () => aheadBlock(m),
+    opps:   () => oppsBlock(m, b.brief_md, b.source),
+    focus:  () => focusBlock(m),
+    expo:   () => expoBlock(m)
+  };
+  let formatted = null;
+  if(view === "read"){
+    const order = [];
+    for(const x of parseBrief(b.brief_md)) if(x.key !== "header" && !order.includes(x.key)) order.push(x.key);
+    const done = new Set();
+    let out = "";
+    for(const k of order){
+      const built = BUILT[k] ? BUILT[k]() : "";
+      if(built){ out += built; done.add(k); continue; }
+      const one = renderSections(b.brief_md, null, new Set([k]));
+      if(one) out += one;
+    }
+    for(const k of Object.keys(BUILT)){
+      if(done.has(k) || order.includes(k)) continue;
+      const built = BUILT[k]();
+      if(built) out += built;
+    }
+    formatted = out || null;
+  }
   h += formatted !== null && view === "read"
      ? formatted
      : `<pre id="raw">${esc(b.brief_md)}</pre>`;
