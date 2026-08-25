@@ -196,7 +196,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:20-14:05
+  v2026:08:20-15:30
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -731,9 +731,18 @@ function expoBlock(m){
     ? esc(hb.label) + (hb.from_date ? " · since " + esc(hb.from_date) : "") + (hb.note ? " · " + esc(hb.note) : "")
     : "colour basis not stated by the run — treat the shading as unlabelled";
   const nMissing = rows.filter(r=>r.chg_pct==null).length;
+  // A run that stored NO move for ANY position must not still advertise a colour basis —
+  // the map would read as "everything was flat" when in fact nothing was measured.
+  // Seen on the 2026-08-25 daily: all 80 positions_x entries omitted chg_pct entirely
+  // while heat_basis still claimed "price move vs previous brief".
+  const allMissing = rows.length > 0 && nMissing === rows.length;
+  const basisLine = allMissing
+    ? `<b>No colour this run.</b> The run stored no price move for any of the ${rows.length} positions, so every tile is
+       neutral \u2014 this is missing data, not a flat day. Tile area still shows position value in SGD.`
+    : `Tile area = position value in SGD. Colour = ${basis}.`
+      + (nMissing ? ` ${nMissing} position${nMissing>1?"s":""} had no move available and show neutral gray.` : "");
   return `<div class="sec expo">
-    <div class="hmbasis">Tile area = position value in SGD. Colour = ${basis}.`+
-    (nMissing?` ${nMissing} position${nMissing>1?"s":""} had no move available and show neutral gray.`:"")+`</div>`
+    <div class="hmbasis"${allMissing?' style="color:var(--warn)"':''}>${basisLine}</div>`
     + heatBlock("hm_mkt","By market country", rows, "mkt", 300)
     + heatBlock("hm_sec","By sector", rows, "sector", 400)
     + posTable(rows)
