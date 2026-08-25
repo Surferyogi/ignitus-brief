@@ -196,7 +196,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:20-15:30
+  v2026:08:20-16:20
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -989,7 +989,21 @@ function oppsBlock(m, md, source){
 }
 
 function focusBlock(m){
-  const f = m.focus10;
+  // CK 2026-08-20: the stored `rank` orders by the ABSOLUTE move, which interleaves
+  // gainers and losers. Presentation now sorts SIGNED — biggest gain at the top, biggest
+  // loss at the bottom — so the two directions read as two ends of one scale. MEMBERSHIP
+  // is unchanged and must stay absolute: ranking the SELECTION by signed value would pick
+  // the ten best risers and never show the losses at all. A name with no move sorts last
+  // rather than being treated as zero, which would drop it into the middle.
+  const f0 = m.focus10;
+  const f = Array.isArray(f0) ? [...f0].sort((a,b) => {
+    const av = a.chg_sgd==null ? null : Number(a.chg_sgd);
+    const bv = b.chg_sgd==null ? null : Number(b.chg_sgd);
+    if(av==null && bv==null) return 0;
+    if(av==null) return 1;
+    if(bv==null) return -1;
+    return bv - av;
+  }) : f0;
   if(!Array.isArray(f) || !f.length) return `<div class="sec focus"><div class="sec-h">
       <span class="dot" style="background:var(--accent)"></span><h2>Focus 10</h2></div>
       <div class="nadata">not available for this brief — the ranked list needs <code>metrics.focus10</code>,
@@ -1042,7 +1056,7 @@ function focusBlock(m){
       return fmtText(String(w));
     };
     return `<details class="f10"${i===0?" open":""}><summary>
-        <span class="rk">${r.rank!=null?r.rank:i+1}</span>
+        <span class="rk">${i+1}</span>
         <span class="tk">${esc(r.ticker||"?")}</span>
         <span class="wt">${r.w_pct!=null?Number(r.w_pct).toFixed(1)+"% of book":""}</span>
         <span class="mv" style="color:${col}">${pct1(mv)}${r.chg_sgd!=null?" · "+sgd0(r.chg_sgd):""}</span>
@@ -1057,9 +1071,9 @@ function focusBlock(m){
   };
   return `<div class="sec focus"><div class="sec-h">
       <span class="dot" style="background:var(--accent)"></span><h2>Focus 10</h2>
-      <span class="sub">biggest SGD moves first</span></div>
+      <span class="sub">biggest gain first · biggest loss last</span></div>
     ${f.map(card).join("")}
-    <div class="disclaimer">Ranked by the <b>size of the move in SGD</b> — position size × price move — so a small percentage on a
+    <div class="disclaimer">The ten biggest moves in SGD, listed from the biggest gain down to the biggest loss. Chosen by the <b>size of the move in SGD</b> — position size × price move — so a small percentage on a
     big holding outranks a big percentage on a small one. Two names join regardless of how far they moved: any position at or above
     9% of the book, and any reporting earnings today. Where to look, not what to do — that is Act today.</div></div>`;
 }
