@@ -140,6 +140,7 @@ details.fold[open]>summary{color:var(--tx3)}
 /* ── HEATMAPS ── */
 .hmwrap{position:relative;width:100%;margin:8px 0 2px}
 .hmbasis{font-size:12px;color:var(--tx3);margin:2px 0 8px}
+.hmnote{font-size:11.5px;color:var(--tx3);margin:6px 0 10px;line-height:1.45}
 .hm{position:relative;width:100%;overflow:hidden;border-radius:10px}
 .tile{position:absolute;overflow:hidden;border-radius:3px;
   box-shadow:0 0 0 1px var(--bg);padding:2px 3px;cursor:pointer;
@@ -196,7 +197,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:20-16:20
+  v2026:08:28-06:05
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -605,15 +606,120 @@ function groupBy(rows, key){
   return out;
 }
 
+/* ── THEME TAGS (CK 2026-08-26; currency and macro-bucket maps REMOVED 2026-08-28
+   after measurement — currency was the market map relabelled, and the macro
+   buckets explained 8.3% of the daily spread against sector's 21.7%.)
+   Nothing here is invented: "AI & semiconductors" is CK's OWN semi-cluster list
+   from the 30% guardrail, verbatim, and "Property trusts" are the names the run
+   itself scored through `metrics.reit`. Everything else stays "not classified"
+   rather than being guessed at. Not a view on any holding. */
+const SEMI_CLUSTER = ["NVDA","AMAT","ASML","AMD","TSM","KLAC","TER","AVGO","COHR","SOXX","1347.HK","SNPS"];
+
+/* ── RISK CONTRIBUTION (CK 2026-08-28) ───────────────────────────────────────
+   Measured, tested reason this exists: grouping the book different ways barely
+   helped. Across 19 stored days, sector explained 21.7% of the day-to-day spread
+   between holdings; a macro-bucket regrouping explained 8.3% (it MERGES sectors,
+   and coarsening a partition can only lose information) and a currency map turned
+   out to be the market map relabelled — `mkt` maps one-to-one onto `ccy`.
+   What was wrong was never the grouping, it was the ENCODING: every map sized
+   tiles by SGD value, and in a concentrated book value badly misstates exposure.
+   This sizes them by each holding's share of the book's daily variance:
+       rc_i = w_i · Cov(r_i, r_p) / Var(r_p)      and  Σ rc_i = 1
+   Pure arithmetic on figures the runs already stored. Nothing is fetched, nothing
+   is modelled, and it is not a view on any holding.
+   Honest limits, printed on the page: weekly rows are excluded (their chg_pct is a
+   7-day move, not a daily one), a name needs a complete series to be included, and
+   a one-month window says nothing about tail risk or drawdown. */
+function riskShares(selIdx){
+  if(!Array.isArray(briefs) || !briefs[selIdx]) return null;
+  const pxc = (briefs[selIdx].metrics || {}).positions_x;
+  if(!pxc || typeof pxc !== "object") return null;
+  const hist = [];
+  for(let j = selIdx; j < briefs.length; j++){
+    const b = briefs[j];
+    if((b.source || "").indexOf("weekly") >= 0) continue;      // 7-day basis
+    const p = b.metrics && b.metrics.positions_x;
+    if(!p || typeof p !== "object") continue;
+    let n = 0;
+    for(const k of Object.keys(p)) if(p[k] && p[k].chg_pct != null) n++;
+    if(n > 0) hist.push(p);
+  }
+  const T = hist.length;
+  if(T < 10) return {ok:false, days:T};
+  const names = [], series = [], raw = [];
+  let bookTot = 0;
+  for(const t of Object.keys(pxc)){
+    const v = pxc[t]; const val = v ? Number(v.value_sgd) : NaN;
+    if(!(val > 0)) continue;
+    bookTot += val;
+    const sr = []; let full = true;
+    for(const p of hist){
+      const q = p[t];
+      if(!q || q.chg_pct == null){ full = false; break; }
+      sr.push(Number(q.chg_pct));
+    }
+    if(full){ names.push(t); series.push(sr); raw.push(val); }
+  }
+  const n = names.length;
+  if(n < 5) return {ok:false, days:T};
+  const covTot = raw.reduce((a,b)=>a+b, 0);
+  const W = raw.map(x => x / covTot);
+  const rp = [];
+  for(let k = 0; k < T; k++){ let acc = 0; for(let i = 0; i < n; i++) acc += W[i]*series[i][k]; rp.push(acc); }
+  const mp = rp.reduce((a,b)=>a+b,0)/T;
+  let varp = 0; for(const x of rp) varp += (x-mp)*(x-mp);
+  varp /= (T-1);
+  if(!(varp > 0)) return {ok:false, days:T};
+  const rc = [];
+  for(let i = 0; i < n; i++){
+    const sr = series[i], mi = sr.reduce((a,b)=>a+b,0)/T;
+    let c = 0; for(let k = 0; k < T; k++) c += (sr[k]-mi)*(rp[k]-mp);
+    rc.push(W[i] * (c/(T-1)) / varp);
+  }
+  return {ok:true, days:T, names, rc, W, vol:Math.sqrt(varp),
+          covered: bookTot > 0 ? covTot/bookTot : 1};
+}
+
+/* rows shaped like posRows(), but `value` is share of daily risk, not SGD.
+   A negative contributor cannot have an area, so it is clamped to zero and
+   named underneath instead of being drawn as though it were nothing. */
+function riskRows(m, selIdx){
+  const R = riskShares(selIdx);
+  if(!R || !R.ok) return R;
+  const pxc = m.positions_x, rows = [], neg = [];
+  for(let i = 0; i < R.names.length; i++){
+    const t = R.names[i], v = pxc[t] || {};
+    if(R.rc[i] < 0) neg.push(t);
+    rows.push({ticker:t, mkt:v.mkt || "not classified", sector:v.sector || "not classified",
+      value: Math.max(R.rc[i], 0) * 100, riskpct: R.rc[i]*100, wt: R.W[i]*100,
+      price: v.price!=null?Number(v.price):null, ccy: v.ccy || null,
+      chg_pct: v.chg_pct!=null?Number(v.chg_pct):null,
+      chg_sgd: v.chg_sgd!=null?Number(v.chg_sgd):null});
+  }
+  const tt = rows.reduce((a,b)=>a+b.value, 0);
+  rows.forEach(r => r.w_pct = tt>0 ? r.value/tt*100 : null);
+  rows.sort((a,b)=>b.value-a.value);
+  rows.total = tt;
+  // the headline: how far the top ten by VALUE differ from the top ten by RISK
+  const byW = R.W.slice().sort((a,b)=>b-a).slice(0,10).reduce((a,b)=>a+b,0);
+  const byR = R.rc.slice().sort((a,b)=>b-a).slice(0,10).reduce((a,b)=>a+b,0);
+  return {ok:true, rows, days:R.days, vol:R.vol, covered:R.covered, neg,
+          n:R.names.length, top10w:byW*100, top10r:byR*100};
+}
+
 function posRows(m){
   const px = m.positions_x;
   if(!px || typeof px !== "object" || !Object.keys(px).length) return null;
+  // the run's own property-trust list — whatever it scored through reit_health
+  const reitSet = new Set(m.reit && typeof m.reit === "object" ? Object.keys(m.reit) : []);
   const rows = [];
   for(const tk of Object.keys(px)){
     const v = px[tk] || {};
     const val = v.value_sgd != null ? Number(v.value_sgd) : null;
     if(val == null || !(val > 0)) continue;
     rows.push({ticker:tk, mkt:v.mkt || "not classified", sector:v.sector || "not classified",
+               theme: SEMI_CLUSTER.indexOf(tk) >= 0 ? "AI & semiconductors"
+                    : (reitSet.has(tk) ? "Property trusts" : "not classified"),
                value:val, price:v.price!=null?Number(v.price):null, ccy:v.ccy||null,
                chg_pct:v.chg_pct!=null?Number(v.chg_pct):null,
                chg_sgd:v.chg_sgd!=null?Number(v.chg_sgd):null});
@@ -629,10 +735,10 @@ function posRows(m){
 /* Build one map container. Layout happens after insertion in drawHeat() — the
    squarified aspect ratios need the real pixel width, which is unknown here. */
 let HEAT = {};   // id -> {groups, dom, height}; reset on every render()
-function heatBlock(id, title, rows, key, height){
+function heatBlock(id, title, rows, key, height, unit){
   const groups = groupBy(rows, key);
   const dom = heatDomain(rows.map(r=>r.chg_pct));
-  HEAT[id] = {groups, dom, height};
+  HEAT[id] = {groups, dom, height, unit: unit || "sgd"};
   const strip = groups.map(g =>
     `<div class="gl"><span>${esc(g.name)}</span><span>${g.value/rows.total*100 >= 0.05 ? (g.value/rows.total*100).toFixed(1) : "<0.1"}%</span>`+
     `<span>${g.n} pos</span><span style="color:${g.chg_pct==null?'var(--tx3)':(g.chg_pct>=0?'var(--good)':'var(--bad)')}">${pct1(g.chg_pct)}</span></div>`
@@ -702,13 +808,22 @@ document.addEventListener("click", e => {
   const tip = document.getElementById(t.dataset.hm+"_tip"); if(!tip || !row) return;
   tip.dataset.touched = "1";
   const col = row.chg_pct==null ? "var(--tx3)" : (row.chg_pct>=0?"var(--good)":"var(--bad)");
+  const size = H.unit === "risk"
+    ? `${row.riskpct.toFixed(1)}% of daily risk · ${row.wt.toFixed(2)}% of value`
+    : `${fmtSGD(row.value)} · ${row.w_pct!=null?row.w_pct.toFixed(2)+"% of book":"weight n/a"}`;
   tip.innerHTML = `<b>${esc(row.ticker)}</b> · ${esc(row.mkt)} · ${esc(row.sector)} · `+
-    `${fmtSGD(row.value)} · ${row.w_pct!=null?row.w_pct.toFixed(2)+"% of book":"weight n/a"} · `+
+    `${size} · `+
     `<span style="color:${col};font-weight:650">${pct1(row.chg_pct)}</span>`+
     (row.chg_sgd!=null?` (${sgd0(row.chg_sgd)})`:"")+
     (row.price!=null?` · last ${row.price.toLocaleString("en-SG")}${row.ccy?" "+esc(row.ccy):""}`:"");
 });
 window.addEventListener("resize", () => { clearTimeout(window._hmt); window._hmt = setTimeout(drawHeat, 150); });
+// A closed <details> has clientWidth 0, so squarify cannot lay its maps out until
+// it opens. "toggle" does not bubble — capture it. (CK 2026-08-26)
+document.addEventListener("toggle", e => {
+  const t = e.target;
+  if(t && t.classList && t.classList.contains("hmmore") && t.open) setTimeout(drawHeat, 0);
+}, true);
 
 function posTable(rows){
   const tr = rows.map(r => `<tr><td>${esc(r.ticker)}</td><td>${esc(r.mkt)}</td><td>${esc(r.sector)}</td>`+
@@ -717,6 +832,64 @@ function posTable(rows){
   return `<details class="rel"><summary>Show all ${rows.length} positions as a table ▾</summary>
     <div class="tblScroll"><table><thead><tr><th>Ticker</th><th>Mkt</th><th>Sector</th>
     <th>Value SGD</th><th>Wt %</th><th>Move</th></tr></thead><tbody>${tr}</tbody></table></div></details>`;
+}
+
+/* ── COLOUR FALLBACK: derive the move when the run stored none (CK 2026-08-25) ──
+   Seen on the 2026-08-25 daily: all 80 positions_x entries omitted chg_pct and
+   chg_sgd, so every tile drew neutral and the map read as a flat day. The PRICES
+   were stored — in that run and in the one before it — so the move was recoverable
+   by arithmetic rather than lost. This recovers it. Deliberately narrow:
+     - Only when the run stored a move for NO position. A partly-populated map is
+       left exactly as the run wrote it; mixing a stored basis and a derived one
+       inside one colour scale would misstate what the colours mean.
+     - Against the nearest EARLIER brief row that stored prices, whatever its date.
+       Both dates are printed, so a gap shows rather than hides.
+     - chg_pct = p_now/p_prev - 1, local currency. No FX is applied, which is what
+       the runs themselves store ("local currency, FX excluded").
+     - chg_sgd = the PRICE move in SGD: value_sgd x (1 - p_prev/p_now), which equals
+       shares x (p_now - p_prev) x today's FX. Same convention the producers use from
+       2026-08-28 (CK chose it over the stored-value difference, which carried FX and
+       any reclassification and could disagree in sign with the percentage). Written
+       only when the share count is identical in both rows - a trade in between makes
+       the figure ambiguous, so it stays null.
+     - No split adjustment is possible from stored data. Said so on the face of it.
+   Stored figures always win; this never overwrites one. */
+function prevDateLabel(d){ return d ? String(d) : "an earlier brief"; }
+function derivePrices(selIdx){
+  if(!Array.isArray(briefs)) return null;
+  for(let j = selIdx + 1; j < briefs.length; j++){
+    const row = briefs[j];
+    const px = row && row.metrics && row.metrics.positions_x;
+    if(!px || typeof px !== "object") continue;
+    let n = 0;
+    for(const k of Object.keys(px)) if(px[k] && Number(px[k].price) > 0) n++;
+    if(n) return {date: row.run_date, src: row.source || "", px: px};
+  }
+  return null;
+}
+
+/* The same book, sized by what actually moves it. Colour is unchanged — still
+   today's price move — so area answers "how much does this drive my swings" and
+   colour answers "what did it do today". (CK 2026-08-28) */
+function riskBlock(m){
+  const R = riskRows(m, sel);
+  if(!R) return "";
+  if(!R.ok) return `<div class="hmnote"><b>Risk sizing not available for this brief.</b> It needs at least 10
+    daily briefs that stored a price move for the book; ${R.days || 0} are available at or before this date.
+    Weekly reviews are excluded on purpose — their move is a 7-day figure and cannot sit in a daily series.</div>`;
+  const rows = R.rows;
+  return `<div class="hmnote"><b>Tile area = share of the book's daily risk</b>, not its SGD value. Each holding's
+      contribution is <code>weight × covariance with the book ÷ the book's variance</code>, which sums to 100%,
+      measured across the ${R.days} daily briefs at or before this date. Colour is unchanged: still today's price move.
+      <br><b>The top ten by value are ${R.top10w.toFixed(1)}% of the book but ${R.top10r.toFixed(1)}% of its daily
+      movement.</b> Book volatility over the window: ${R.vol.toFixed(2)}% a day.</div>`
+    + heatBlock("hm_risk","By risk contribution, grouped by sector", rows, "sector", 360, "risk")
+    + `<div class="hmnote">Covers ${R.n} holdings holding ${(R.covered*100).toFixed(0)}% of the book — a name needs a
+      move stored on every one of those days to be included.`
+    + (R.neg.length ? ` ${R.neg.length} name${R.neg.length>1?"s":""} measured a NEGATIVE contribution and cannot be drawn
+      as an area: ${R.neg.slice(0,8).map(esc).join(", ")}${R.neg.length>8?" …":""}. Over a window this short that
+      sits inside the noise — do not read it as a hedge.` : "")
+    + ` This is daily variance over roughly a month. It says nothing about tail risk or how deep a fall could go.</div>`;
 }
 
 function expoBlock(m){
@@ -730,21 +903,78 @@ function expoBlock(m){
   const basis = hb.label
     ? esc(hb.label) + (hb.from_date ? " · since " + esc(hb.from_date) : "") + (hb.note ? " · " + esc(hb.note) : "")
     : "colour basis not stated by the run — treat the shading as unlabelled";
-  const nMissing = rows.filter(r=>r.chg_pct==null).length;
+  const storedMissing = rows.filter(r=>r.chg_pct==null).length;
   // A run that stored NO move for ANY position must not still advertise a colour basis —
   // the map would read as "everything was flat" when in fact nothing was measured.
   // Seen on the 2026-08-25 daily: all 80 positions_x entries omitted chg_pct entirely
-  // while heat_basis still claimed "price move vs previous brief".
-  const allMissing = rows.length > 0 && nMissing === rows.length;
-  const basisLine = allMissing
-    ? `<b>No colour this run.</b> The run stored no price move for any of the ${rows.length} positions, so every tile is
-       neutral \u2014 this is missing data, not a flat day. Tile area still shows position value in SGD.`
-    : `Tile area = position value in SGD. Colour = ${basis}.`
+  // while heat_basis still claimed "price move vs previous brief". First try to
+  // recover the move from the stored prices; only say "no colour" if that fails too.
+  const allMissing = rows.length > 0 && storedMissing === rows.length;
+  let derived = null;
+  if(allMissing){
+    const prev = derivePrices(sel);
+    const pxNow = m.positions_x || {};
+    if(prev){
+      let hit = 0, sgdHit = 0;
+      for(const r of rows){
+        const a = pxNow[r.ticker] || {}, b0 = prev.px[r.ticker];
+        const now = Number(a.price), was = b0 ? Number(b0.price) : NaN;
+        if(!(now > 0) || !(was > 0)) continue;
+        r.chg_pct = (now/was - 1) * 100;
+        r.derived = true;
+        hit++;
+        // SGD amount = the PRICE move valued in SGD, matching the producer convention
+        // CK chose on 2026-08-28: shares × (price_now − price_prev) × today's FX. Written
+        // here as value_sgd × (1 − p_prev/p_now), which is the same figure — value_sgd
+        // already carries today's shares at today's FX — and it always agrees in SIGN
+        // with the percentage. The earlier stored-value difference did not: it carried FX
+        // and any currency reclassification, and printed ESLOF +S$4,489 on a −2.5% day.
+        const s1 = a.shares, s0 = b0.shares;
+        if(s1 != null && s0 != null && Number(s1) === Number(s0) && r.value != null){
+          r.chg_sgd = r.value * (1 - was/now);
+          sgdHit++;
+        }
+      }
+      if(hit) derived = {date: prev.date, hit: hit, sgd: sgdHit, miss: rows.length - hit};
+      else for(const r of rows) r.derived = false;
+    }
+  }
+  const nMissing = rows.filter(r=>r.chg_pct==null).length;
+  let basisLine;
+  if(derived){
+    // The two facts that change how the colours should be read stay on the face of it:
+    // the colour is the viewer's, not the run's, and which two dates it spans. The rest
+    // of the caveats fold, matching how the other sections behave. (CK 2026-08-25)
+    basisLine = `<b>Colour recovered by this viewer.</b> This run stored no price move, so the shading below is this viewer's own
+      arithmetic on the prices the runs stored: <b>${esc(prevDateLabel(derived.date))} \u2192 this brief</b>, ${derived.hit} of ${rows.length} positions.`
+      + `<details class="fold"><summary>How this was worked out \u25be</summary><div style="margin-top:4px">`
+      + `The run wrote a price for every position but no move, while still stating its basis as \u201c${basis}\u201d \u2014 that basis could not be used, `
+      + `so every tile would have drawn neutral and the map would have read as a flat day. The percentage here is each position's own price in this brief `
+      + `against its price in the ${esc(prevDateLabel(derived.date))} brief, in local currency, so it carries no currency movement.`
+      + (derived.miss ? ` ${derived.miss} position${derived.miss>1?"s":""} had no earlier price to compare and show neutral gray.` : "")
+      + ` The SGD amount in a tile's detail is the price move valued in SGD, so it carries no currency movement and always agrees in sign with the percentage`
+      + (derived.sgd < derived.hit ? `, and is shown for ${derived.sgd} of ${derived.hit}; the rest had a share-count change in between, which makes the amount ambiguous` : "")
+      + `. Nothing here is adjusted for a share split, which stored data cannot detect. Tile area = position value in SGD.`
+      + `</div></details>`;
+  }else if(allMissing){
+    basisLine = `<b>No colour this run.</b> The run stored no price move for any of the ${rows.length} positions and no earlier brief carried
+       comparable prices, so every tile is neutral \u2014 this is missing data, not a flat day. Tile area still shows position value in SGD.`;
+  }else{
+    basisLine = `Tile area = position value in SGD. Colour = ${basis}.`
       + (nMissing ? ` ${nMissing} position${nMissing>1?"s":""} had no move available and show neutral gray.` : "");
+  }
   return `<div class="sec expo">
-    <div class="hmbasis"${allMissing?' style="color:var(--warn)"':''}>${basisLine}</div>`
+    <div class="hmbasis"${(derived||allMissing)?' style="color:var(--warn)"':''}>${basisLine}</div>`
     + heatBlock("hm_mkt","By market country", rows, "mkt", 300)
     + heatBlock("hm_sec","By sector", rows, "sector", 400)
+    + `<details class="fold hmmore"><summary>Sized by risk instead of by value \u25be</summary>`
+    + riskBlock(m)
+    + heatBlock("hm_theme","By theme", rows, "theme", 300)
+    + `<div class="hmnote">AI &amp; semiconductors is your own guardrail list, verbatim. Property trusts are the names
+       the run put through its property checklist. Momentum, quality and dividend factors are <b>not shown</b>:
+       computing them for every holding needs 6\u201312-month returns, balance-sheet figures and dividend history the
+       runs do not store for the whole book \u2014 they are not omitted by choice, they are unavailable.</div>
+       </details>`
     + posTable(rows)
     + `<div class="disclaimer">Sizes and moves are arithmetic from the brief's own stored figures — not a view on any position.</div>
   </div>`;
