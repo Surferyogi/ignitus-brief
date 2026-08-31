@@ -197,7 +197,7 @@ details.rel>summary::-webkit-details-marker{display:none}
 <footer>
   Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:28-06:05
+  v2026:08:31-14:45
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -387,12 +387,20 @@ function renderSections(md, skip, only){
 }
 
 function meter(label, d){
-  if(!d || d.pct==null) return "";
-  const cap = d.cap, pct = d.pct;
+  /* KEY-NAME FIX (CK 2026-08-31). The runs store `weight_pct` / `cap_pct` /
+     `trim_sgd_to_cap`; this function read `pct` / `cap` / `excess_sgd`, which do
+     not exist on that object. Every meter therefore returned "" and the whole
+     Guardrails bar section was skipped — silently, on every brief ever stored.
+     Both spellings are accepted so old and new rows alike render. */
+  if(!d) return "";
+  const pct = d.weight_pct!=null ? d.weight_pct : d.pct;
+  const cap = d.cap_pct!=null ? d.cap_pct : d.cap;
+  if(pct==null || cap==null) return "";
   const max = Math.max(cap*1.25, pct*1.05);
   const w = Math.min(100, pct/max*100), capX = cap/max*100;
   const over = pct > cap;
-  const excess = d.excess_sgd!=null && over ? ` · ${fmtSGD(d.excess_sgd)} over` : "";
+  const exSgd = d.trim_sgd_to_cap!=null ? d.trim_sgd_to_cap : d.excess_sgd;
+  const excess = exSgd!=null && over ? ` · ${fmtSGD(exSgd)} over` : "";
   return `<div class="meter"><div class="row"><span>${esc(label)}</span>
     <span class="n" style="color:${over?'var(--bad)':'var(--tx2)'}">${pct.toFixed(2)}% / cap ${cap}%${excess}</span></div>
     <div class="bar"><div class="fill ${over?'over':''}" style="width:${w}%"></div><div class="cap" style="left:${capX}%"></div></div></div>`;
@@ -969,9 +977,13 @@ function expoBlock(m){
     + heatBlock("hm_sec","By sector", rows, "sector", 400)
     + `<details class="fold hmmore"><summary>Sized by risk instead of by value \u25be</summary>`
     + riskBlock(m)
-    + heatBlock("hm_theme","By theme", rows, "theme", 300)
-    + `<div class="hmnote">AI &amp; semiconductors is your own guardrail list, verbatim. Property trusts are the names
-       the run put through its property checklist. Momentum, quality and dividend factors are <b>not shown</b>:
+    /* BY THEME heatmap REMOVED (CK 2026-08-31): it only ever resolved to two groups
+       and "not classified" held 73.2% of the book on 2026-08-31, so as a treemap it
+       said nothing the sector map does not. The one figure it did carry — the semi
+       cluster at 26.80% against its 30% cap — belongs in the Guardrails meters,
+       which is a threshold question and not a partition. SEMI_CLUSTER and rows[].theme
+       are deliberately left in place: the list is CK's own and costs nothing to keep. */
+    + `<div class="hmnote">Momentum, quality and dividend factors are <b>not shown</b>:
        computing them for every holding needs 6\u201312-month returns, balance-sheet figures and dividend history the
        runs do not store for the whole book \u2014 they are not omitted by choice, they are unavailable.</div>
        </details>`
@@ -1313,7 +1325,9 @@ function render(){
   const b = briefs[sel], m = b.metrics || {};
   const acts = m.act || [];
   const dk = m.derisk || {};
-  const breaches = Object.values(dk).filter(x=>x && x.breached).length;
+  /* KEY-NAME FIX (CK 2026-08-31): runs store `breach`, this read `breached`, so the
+     Guardrails tile showed a green OK even with a cap actually over. Accept both. */
+  const breaches = Object.values(dk).filter(x=>x && (x.breach || x.breached)).length;
   const rv = retvs(b.run_date, m);
   let h = "";
 
