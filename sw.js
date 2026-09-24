@@ -3,7 +3,7 @@
    so an unchanged cache name lets an old index.html survive a refresh; changing
    the name makes the activate handler delete the stale cache. (CK 2026-08-18)
    Shell: cache-first. API data is cached by the page itself (Cache API, DATA_CACHE). */
-const SHELL_CACHE = "ignitus-shell-v15";
+const SHELL_CACHE = "ignitus-shell-v16";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
