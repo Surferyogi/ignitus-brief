@@ -195,9 +195,9 @@ details.rel>summary::-webkit-details-marker{display:none}
 <nav id="dates" aria-label="Brief history"></nav>
 <main id="app"></main>
 <footer>
-  Read-only viewer · daily brief Tue–Sat ~06:00 JST · weekly review Mon ~06:00 JST<br>
+  Read-only viewer · daily brief Tue–Sat ~07:10 JST · weekly review Mon ~06:10 JST<br>
   Not financial advice — facts and framework signals only; decisions are CK's.<br>
-  v2026:08:31-14:45
+  v2026:09:21-16:35
 </footer>
 <script>
 const SUPABASE_URL = "https://ckyshjxznltdkxfvhfdy.supabase.co";
@@ -214,6 +214,49 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtSGD = n => n==null ? "n/a" : "SGD " + Math.round(n).toLocaleString("en-SG");
 const dOf = iso => new Date(iso + "T00:00:00");
+
+// ─── NEXT EXPECTED RUN (CK 2026-09-04, rebuilt 2026-09-21) ─────────────────
+// So a late brief can be told apart from one that is simply not due yet. All times are
+// JST (UTC+9, no daylight saving). Fire times come from the live trigger crons:
+//   daily   40 21 * * 1-5 UTC → 06:40 JST Tue–Sat
+//   weekly  40 20 * * 0   UTC → 05:40 JST Mon
+//   watchdog 10 23 * * 1-5 UTC → 08:10 JST Tue–Sat (no Monday backstop)
+// Landing lag measured on brief_log rows 60–80: 27–36 min after the fire. "Due" is fire
+// +25 min, "late" is fire +45. If a cron changes, edit fireOf() and nothing else.
+const JDOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function fireOf(dow){                      // minutes after 00:00 JST, or null = nothing runs
+  if(dow === 1) return {kind:"weekly", fire: 5*60+40, wd: null};
+  if(dow >= 2 && dow <= 6) return {kind:"brief", fire: 6*60+40, wd: 8*60+10};
+  return null;
+}
+const hm = n => String(Math.floor(n/60)).padStart(2,"0") + ":" + String(n%60).padStart(2,"0");
+function scheduleNote(latestRunDate, nowMs){
+  const j = new Date((nowMs ?? Date.now()) + 9*3600e3);          // JST wall clock in UTC fields
+  const today = j.toISOString().slice(0,10);
+  const mins = j.getUTCHours()*60 + j.getUTCMinutes();
+  const f = fireOf(j.getUTCDay());
+  const next = () => {                                            // next run after today
+    for(let k=1;k<=7;k++){
+      const g = fireOf((j.getUTCDay()+k)%7);
+      if(g) return `next ${g.kind} ~${hm(g.fire+25)} JST ${JDOW[(j.getUTCDay()+k)%7]}`;
+    }
+    return "";
+  };
+  if(!f) return next();                                           // Sunday: nothing scheduled
+  if(latestRunDate === today) return next();                     // today's already in
+  if(mins < f.fire) return `${f.kind} runs ${hm(f.fire)} JST, lands ~${hm(f.fire+25)}–${hm(f.fire+45)}`;
+  if(mins < f.fire+25) return `${f.kind} due ~${hm(f.fire+25)} JST (${f.fire+25-mins} min)`;
+  if(mins < f.fire+45) return `${f.kind} running — due by ~${hm(f.fire+45)} JST`;
+  if(f.wd == null) return `⚠ ${f.kind} LATE — no watchdog backstop on Mondays`;
+  if(mins < f.wd+45) return `⚠ ${f.kind} LATE — watchdog backstop ~${hm(f.wd+25)} JST`;
+  return `⚠ no ${f.kind} for ${today} — primary and watchdog both missed`;
+}
+function paintStatus(fromCache){
+  const base = (fromCache ? "offline · cached" : "live") + " · " + briefs.length + " brief" + (briefs.length>1?"s":"");
+  let note = "";
+  try{ note = scheduleNote(briefs.length ? briefs[0].run_date : null); }catch(e){ note = ""; }
+  $("#status").textContent = base + (note ? " · " + note : "");
+}
 
 async function load(){
   let net = null, fromCache = false;
@@ -238,8 +281,10 @@ async function load(){
   }catch(e){
     try{ const c = await caches.open(DATA_CACHE); const m2 = await c.match(API_HIST); if(m2) hist = await m2.json(); }catch(e2){}
   }
-  if(!briefs.length){ showErr("No briefs in brief_log yet — first scheduled run is the next weekday 07:15 SGT."); return; }
-  $("#status").textContent = (fromCache ? "offline · cached" : "live") + " · " + briefs.length + " brief" + (briefs.length>1?"s":"");
+  if(!briefs.length){ showErr("No briefs in brief_log yet — the next scheduled run lands about 07:05–07:25 JST (06:05–06:25 SGT), Tue–Sat."); return; }
+  paintStatus(fromCache);
+  clearInterval(window.__schedTimer);
+  window.__schedTimer = setInterval(()=>paintStatus(fromCache), 60000);
   renderDates(); render();
 }
 
@@ -334,6 +379,13 @@ function parseBrief(md){
     else cur.paras.push(t);
   }
   secs.push(cur);
+  // The 2026-09-21 weekly wrote every takeaway as "💬 **Key Highlights** — …". The box
+  // already carries the label, so the prefix printed twice with literal asterisks.
+  // Strip a leading label and any ** markers; the words themselves are untouched. (CK 2026-09-21)
+  for(const x of secs) if(x.plain){
+    x.plain = x.plain.replace(/^\*{0,2}\s*Key Highlights\s*\*{0,2}\s*[\u2014\u2013:-]?\s*/i, "").replace(/\*\*/g, "").trim();
+    if(!x.plain) delete x.plain;
+  }
   return secs;
 }
 function fmtText(s){
@@ -1161,16 +1213,23 @@ function moversBlock(m){
     measured from. Percentages are price moves, not returns after money in or out.</div></div>`;
 }
 
-function aheadBlock(m){
+function aheadBlock(m, md){
   const up = m.upcoming;
   if(!up || typeof up !== "object") return "";
   const dated = (title, arr, note) => {
     if(Array.isArray(arr) && arr.length){
       const rows = arr.map(x => {
         const d = x.date ? esc(String(x.date)) : "date not available";
-        const ev = esc(String(x.event || x.ticker || ""));
+        // The producers do not agree on the key: the 2026-09-14 weekly wrote "event", the
+        // 2026-09-21 weekly wrote "what" — so every macro line showed a date and a bare
+        // "source" link with no event name. Read whichever is present. (CK 2026-09-21)
+        const nm = x.event || x.what || x.name || x.title || x.label || x.desc || "";
+        const ev = esc(String(nm && x.ticker && nm !== x.ticker ? x.ticker + " \u00b7 " + nm : (nm || x.ticker || "event name not provided by the run")));
+        const why = x.why ? ` <span style="color:var(--tx3)">(${esc(String(x.why))})</span>` : "";
         const u = x.url ? ` <a href="${esc(String(x.url))}" target="_blank" rel="noopener" style="color:var(--accent)">source</a>` : "";
-        return `<div class="wl">\u2022 <b>${d}</b> \u2014 ${ev}${u}</div>`;
+        // an undated item whose own text already says "not available" does not need the date prefix twice
+        const lead = (!x.date && /not available/i.test(String(nm))) ? "" : `<b>${d}</b> \u2014 `;
+        return `<div class="wl">\u2022 ${lead}${ev}${why}${u}</div>`;
       }).join("");
       return `<div class="wl" style="font-size:12px;color:var(--tx3);padding-top:8px">${esc(title)}</div>${rows}`;
     }
@@ -1181,10 +1240,13 @@ function aheadBlock(m){
   const body = dated("Earnings", up.earnings, up.earnings_note)
              + dated("Dividends", up.dividends, up.dividends_note)
              + dated("Macro", up.macro, up.macro_note);
-  if(!body) return "";
+  if(!body && !up.note) return "";
+  const plain = plainOf(md, "ahead");
   return `<div class="sec ahead"><div class="sec-h">
       <span class="dot" style="background:var(--warn)"></span><h2>Week ahead</h2>
-      <span class="sub">dated, most imminent first</span></div>${body}
+      <span class="sub">dated, most imminent first</span></div>
+    ${plain ? `<div class="plain"><span class="pl">Key Highlights</span>${esc(plain)}</div>` : ""}
+    ${up.note ? `<div class="wl" style="color:var(--tx3)">\u2022 ${esc(String(up.note))}</div>` : ""}${body}
     <div class="disclaimer">Every macro date is read from an official source during the run and carries its link.
     A missing item says why it is missing rather than being dropped.</div></div>`;
 }
@@ -1268,7 +1330,18 @@ function focusBlock(m){
         const k = (w && typeof w === "object" && w.k != null) ? String(w.k) : "";
         if(!/insider|senate/i.test(k)) return "";   // not a chip-worthy watch item
         const lab = k.split(" (")[0].trim();
-        return lab ? `<span class="chip warn">${esc(lab.toUpperCase())}</span>` : "";
+        if(!lab) return "";
+        // CK 2026-09-21: say how many insider buys and sells, not just "INSIDER". The counts
+        // are read from the stored text ("0 buys / 10 sells", or "0 purchases / 41 disposals");
+        // when none can be read the chip stays as it was. The insider feed returns at most
+        // 10 trades, so a total of exactly 10 under that cap is marked "LAST 10" — it can be more.
+        const txt = String(w.v ?? "") + " " + String(w.src ?? "") + " " + k;
+        const mm = /insider/i.test(k) && String(w.v ?? "").match(/(\d+)\s*(?:buys?|purchases?)\s*\/\s*(\d+)\s*(?:sells?|sales?|disposals?)/i);
+        if(!mm) return `<span class="chip warn">${esc(lab.toUpperCase())}</span>`;
+        const nb = +mm[1], ns = +mm[2];
+        const capped = nb + ns === 10 && /at most 10|caps? at 10|10 most recent/i.test(txt);
+        const cls = ns > nb ? "chip warn" : "chip";
+        return `<span class="${cls}" title="${esc(String(w.v))}">${esc(lab.toUpperCase())} ${nb} BUY \u00b7 ${ns} SELL${capped ? " (LAST 10)" : ""}</span>`;
       }).join("");
     // ascending ladder with the live price slotted at its true position, so "above" and
     // "below" are visible rather than asserted. Rungs with no price fall to the bottom.
@@ -1375,7 +1448,7 @@ function render(){
   const BUILT = {
     bench:  () => benchBlock(m),
     movers: () => moversBlock(m),
-    ahead:  () => aheadBlock(m),
+    ahead:  () => aheadBlock(m, b.brief_md),
     opps:   () => oppsBlock(m, b.brief_md, b.source),
     focus:  () => focusBlock(m),
     expo:   () => expoBlock(m)
